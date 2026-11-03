@@ -1,7 +1,7 @@
 // Offline shell for Life Compass. The page itself is network-first so updates arrive as soon as
 // you're online; fonts and icons are cache-first. Your data never passes through here — it lives
 // in the browser (and your GitHub gist, if sync is on).
-const CACHE = "lifecompass-v4";
+const CACHE = "lifecompass-v5";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "icon-180.png"];
 
 self.addEventListener("install", e => {
@@ -21,7 +21,8 @@ self.addEventListener("fetch", e => {
   if (url.hostname === "api.github.com") return; // sync always goes to the network
 
   if (req.mode === "navigate" || (url.origin === location.origin && url.pathname.endsWith(".html"))) {
-    e.respondWith(fetch(req).then(res => {
+    // always ask the server for the newest page (no 10-minute browser cache) so updates arrive on the next open
+    e.respondWith(fetch(req.url, { cache: "no-cache", credentials: "same-origin" }).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put("index.html", copy));
       return res;

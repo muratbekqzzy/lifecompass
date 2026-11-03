@@ -512,10 +512,10 @@ const dirty=new Set();let flushT=null,writing=Promise.resolve(true),booted=false
 let bc=null;try{bc=new BroadcastChannel("compass")}catch(e){}
 const Store={db:null,
   open(){return new Promise(res=>{let r;try{r=indexedDB.open("compass",1)}catch(e){return res(null)}
-    const t=setTimeout(()=>res(null),4000);
+    let settled=false;const t=setTimeout(()=>{settled=true;res(null)},15000);
     r.onupgradeneeded=()=>r.result.createObjectStore("rec");
-    r.onsuccess=()=>{clearTimeout(t);this.db=r.result;this.db.onversionchange=()=>this.db.close();res(this.db)};
-    r.onerror=r.onblocked=()=>{clearTimeout(t);res(null)}})},
+    r.onsuccess=()=>{if(settled){r.result.close();return}settled=true;clearTimeout(t);this.db=r.result;this.db.onversionchange=()=>this.db.close();res(this.db)};
+    r.onerror=()=>{if(settled)return;settled=true;clearTimeout(t);res(null)}})},
   load(){return new Promise((res,rej)=>{const tx=this.db.transaction("rec"),st=tx.objectStore("rec"),kq=st.getAllKeys(),vq=st.getAll();
     tx.oncomplete=()=>{const out={};kq.result.forEach((k,i)=>out[k]=vq.result[i]);res(out)};tx.onerror=tx.onabort=()=>rej(tx.error)})},
   write(puts,dels){return new Promise((res,rej)=>{const tx=this.db.transaction("rec","readwrite"),st=tx.objectStore("rec");
@@ -638,7 +638,7 @@ const Sync={t:null,running:false,again:false,status:"",msg:"",dirtyS:new Set(),s
       const auth=e.status===401||e.status===403&&!/rate/i.test(e.message);
       this.msg=auth?"GitHub didn't accept the token — reconnect in Settings":e.status===404?"The sync gist is gone — reconnect in Settings":navigator.onLine===false?"Offline — everything is safe on this device and will sync when you're back":"Couldn't sync just now — will retry";
       if((auth||e.status===404)&&this.warned!==this.msg){this.warned=this.msg;toast(this.msg)}}
-    finally{this.running=false;paintSync();renderHeader();if(this.again){this.again=false;this.soon()}}
+    finally{this.running=false;paintSync();if(settingsEl){paintRituals();autoRecover()}renderHeader();if(this.again){this.again=false;this.soon()}}
   },
   async connect(token){
     this.setCfg({token});let gist=null,old=null;
@@ -1261,7 +1261,7 @@ function openSettings(){
   settingsEl=overlay(`<div class="obar"><button class="iconbtn" data-x="close" aria-label="Back">${icon("back")}</button><div class="otitle">Settings</div></div>
   <div class="editor settings">
     <section><h3>Appearance</h3><p>Soft light, calm dark, or follow your device.</p><div class="seg" id="themeseg">${[["auto","Auto"],["light","Light"],["dark","Dark"]].map(([k,l])=>`<button data-x="theme" data-v="${k}">${l}</button>`).join("")}</div></section>
-    <section><h3>Daily rituals</h3><p>Small things to tick off each day in Review.</p><div id="ritlist"></div>
+    <section><h3>Daily rituals</h3><p>Small things to tick off each day in Review.</p><div id="recover"></div><div id="ritlist"></div>
       <form class="add ritform"><input placeholder="e.g. Fajr, morning walk, read 10 pages" aria-label="New ritual" autocomplete="off" enterkeyhint="done"><button aria-label="Add ritual">${icon("plus")}</button></form></section>
     <section><h3>Sync across devices</h3><div id="syncbox"></div></section>
     <section><h3>Your data</h3><p id="datainfo"></p><div class="row"><button class="btn ghost" data-x="export">Export a copy</button><label class="btn ghost">Import<input type="file" accept=".json,application/json" hidden></label></div></section>
@@ -1272,6 +1272,8 @@ function openSettings(){
     else if(x==="theme"){lsSet(TKEY,b.dataset.v);applyTheme();paintTheme()}
     else if(x==="rdel"){const R=S.meta.rituals,gone=R.list.find(r=>r.id===b.dataset.v);R.list=R.list.filter(r=>r.id!==b.dataset.v);touch("meta","rituals");paintRituals();
       if(gone)toast("Removed “"+gone.label+"”",()=>{R.list=R.list.concat(gone);touch("meta","rituals");paintRituals()})}
+    else if(x==="saveorph"){const list=$$("[data-orphan]",o).map(i=>({id:i.dataset.orphan,label:i.value.replace(/\s+/g," ").trim()})).filter(r=>r.label);
+      if(!list.length)return toast("Type at least one name first");addRituals(list);$("#recover",o).innerHTML="";paintRituals();toast("Brought back "+list.length+" habit"+(list.length>1?"s":"")+" ✓")}
     else if(x==="connect"){const tok=$("input.tok",o).value.trim();if(!tok)return;b.disabled=true;b.textContent="Connecting…";
       try{await Sync.connect(tok);toast("Sync is on ✓")}catch(err){Sync.setCfg(null);toast(err.status===401?"That token didn't work — check it has the gist permission":"Couldn't reach GitHub — try again")}paintSync(true)}
     else if(x==="syncnow"){b.disabled=true;b.textContent="Syncing…";await Sync.run();paintSync(true);if(Sync.status==="ok")toast("Synced ✓")}
@@ -1285,9 +1287,49 @@ function openSettings(){
     fr.readAsText(e.target.files[0])});
   paintSettings();
 }
-function paintSettings(){paintTheme();paintRituals();paintSync(true);paintData()}
+function paintSettings(){paintTheme();paintRituals();paintSync(true);paintData();autoRecover()}
+function paintRecover(){
+  const box=$("#recover",settingsEl),orph=orphanRituals();if(!box)return;
+  if(!orph.length){box.innerHTML="";return}
+  /* keep the box (and any names typed into it) while it is asking about the same habits */
+  const shown=$$("[data-orphan]",box).map(i=>i.dataset.orphan).join();if(shown&&shown===orph.map(o=>o.id).join())return;
+  const day=k=>fmt(parse(k),{day:"numeric",month:"short"});
+  box.innerHTML=`<div class="field" style="background:var(--review-t);box-shadow:none;margin:6px 0 14px"><span style="color:var(--ink)"><b>${orph.length} habit${orph.length>1?"s":""} you ticked before ${orph.length>1?"have":"has"} lost ${orph.length>1?"their names":"its name"}.</b></span>
+    <p id="rstat" style="margin:4px 0 10px">${Sync.on()?(searching?"Looking for their names in your sync history…":"Type a name for each and your past ticks stay attached."):"Type a name for each and your past ticks stay attached."}</p>
+    ${orph.map(o=>`<div class="frow" style="padding:0 0 8px"><input class="tok" data-orphan="${o.id}" placeholder="First ticked ${day(o.first)} · ${o.days} day${o.days>1?"s":""}" value="${esc(nameCache[o.id]||"")}" style="background:var(--surface)"></div>`).join("")}
+    <button class="btn" data-x="saveorph">Bring them back</button></div>`;
+}
 function paintTheme(){if(!settingsEl)return;const t=theme();$$("#themeseg button",settingsEl).forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===t))}
-function paintRituals(){if(!settingsEl)return;$("#ritlist",settingsEl).innerHTML=rituals().map(r=>`<div class="ritrow"><span>${esc(r.label)}</span><button class="iconbtn" data-x="rdel" data-v="${r.id}" aria-label="Remove ${esc(r.label)}">${icon("x")}</button></div>`).join("");paintData()}
+function orphanRituals(){const have=new Set(rituals().map(r=>r.id)),info={};
+  Object.keys(S.logs).sort().forEach(k=>{const r=S.logs[k].r;if(r)for(const id in r)if(r[id]&&!have.has(id)){(info[id]=info[id]||{id,first:k,days:0}).days++}});
+  return Object.values(info).sort((a,b)=>a.first.localeCompare(b.first))}
+/* look through earlier versions of the synced copy for the names of these habits */
+const nameCache={};let searching=false;
+async function findRitualNames(ids){
+  const gid=Sync.cfg().gist,X=S.meta.migrated&&S.meta.migrated._t>1?S.meta.migrated._t:Date.now(),found={};let all=[];
+  for(let page=1;page<=10;page++){const list=await Sync.api("/gists/"+gid+"/commits?per_page=100&page="+page);if(!list||!list.length)break;all=all.concat(list)}
+  const t=c=>new Date(c.committed_at).getTime(),order=all.filter(c=>t(c)<=X-1000).concat(all.filter(c=>t(c)>X-1000));
+  for(const c of order.slice(0,80)){
+    const g=await Sync.api("/gists/"+gid+"/"+c.version);
+    for(const n of["compass-core.json","compass.json"]){const f=g.files&&g.files[n];if(!f)continue;
+      try{const o=JSON.parse(await Sync.text(f));(((o.meta||{}).rituals||{}).list||[]).forEach(r=>{if(ids.includes(r.id)&&!found[r.id])found[r.id]=r.label})}catch(e){}}
+    if(ids.every(id=>found[id]))break;
+  }
+  return found;
+}
+function addRituals(list){const R=S.meta.rituals=S.meta.rituals||{id:"rituals",list:[]};const have=new Set((R.list||[]).map(r=>r.id));
+  R.list=(R.list||[]).concat(list.filter(r=>r.label&&!have.has(r.id)));touch("meta","rituals")}
+async function autoRecover(){
+  const miss=orphanRituals().map(o=>o.id).filter(id=>!nameCache[id]);if(!miss.length||!Sync.on()||searching)return;
+  searching=true;const st=settingsEl&&$("#rstat",settingsEl);if(st)st.textContent="Looking for their names in your sync history…";
+  try{Object.assign(nameCache,await findRitualNames(miss))}catch(e){}
+  searching=false;
+  const back=orphanRituals().filter(o=>nameCache[o.id]).map(o=>({id:o.id,label:nameCache[o.id]}));
+  if(back.length){addRituals(back);toast("Brought back "+back.length+" habit"+(back.length>1?"s":"")+": "+back.map(r=>r.label).join(", "))}
+  else if(settingsEl&&$("#rstat",settingsEl))$("#rstat",settingsEl).textContent="Their names weren't in your sync history — type them below and your past ticks stay attached.";
+  paintRituals();
+}
+function paintRituals(){if(!settingsEl)return;paintRecover();$("#ritlist",settingsEl).innerHTML=rituals().map(r=>`<div class="ritrow"><span>${esc(r.label)}</span><button class="iconbtn" data-x="rdel" data-v="${r.id}" aria-label="Remove ${esc(r.label)}">${icon("x")}</button></div>`).join("");paintData()}
 /* the sync box is redrawn only when you're not typing in it */
 function paintSync(force){
   if(!settingsEl)return;const box=$("#syncbox",settingsEl),inp=$("input.tok",box);
