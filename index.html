@@ -624,6 +624,7 @@ const Sync={t:null,running:false,again:false,status:"",msg:"",dirtyS:new Set(),s
           if(f.shard==="core"){const rd=o.deleted||{};for(const k in S.deleted)if(!rd[k]||rd[k]<S.deleted[k]){this.dirtyS.add("core");break}}});
         Object.assign(this.seen,p.seen);
         if(p.legacy){migrate(p.legacy);changed=true}
+        if(needsRepair()){const n=await repairImport(true);if(n){changed=true;toast("Restored your habits and edits that an old copy had overwritten ✓")}}
         if(!p.hasCore)this.markAll();
         if(p.hasV1)this.killV1=true;
         this.etag=p.etag;
@@ -637,7 +638,7 @@ const Sync={t:null,running:false,again:false,status:"",msg:"",dirtyS:new Set(),s
       const auth=e.status===401||e.status===403&&!/rate/i.test(e.message);
       this.msg=auth?"GitHub didn't accept the token — reconnect in Settings":e.status===404?"The sync gist is gone — reconnect in Settings":navigator.onLine===false?"Offline — everything is safe on this device and will sync when you're back":"Couldn't sync just now — will retry";
       if((auth||e.status===404)&&this.warned!==this.msg){this.warned=this.msg;toast(this.msg)}}
-    finally{this.running=false;paintSettings();renderHeader();if(this.again){this.again=false;this.soon()}}
+    finally{this.running=false;paintSync();renderHeader();if(this.again){this.again=false;this.soon()}}
   },
   async connect(token){
     this.setCfg({token});let gist=null,old=null;
@@ -652,10 +653,37 @@ const Sync={t:null,running:false,again:false,status:"",msg:"",dirtyS:new Set(),s
   disconnect(){this.setCfg(null);this.status="";this.msg="";this.seen={};this.etag="";dirty.add("_sync");schedule()}
 };
 
+/* ======== repair: undo an old-data import that an earlier version stamped as new ========
+   Records carrying that import's timestamp are put back to how they were in the last synced copy before
+   it (GitHub keeps every earlier version of the gist); ones that had been deleted are deleted again. */
+function combine(into,o){const t=x=>(x&&x._t)||0;
+  COLS.forEach(c=>{const R=o[c]||{};for(const id in R)if(R[id]&&(!into[c][id]||t(R[id])>t(into[c][id])))into[c][id]=R[id]});
+  const d=o.deleted||{};for(const k in d)if(!into.deleted[k]||into.deleted[k]<d[k])into.deleted[k]=d[k]}
+const needsRepair=()=>{const m=S.meta.migrated;return!!(m&&m._t>1&&!S.meta.repaired)};
+async function repairImport(withHistory){
+  const X=S.meta.migrated._t;let prev=null;
+  if(withHistory){
+    const gid=Sync.cfg().gist;let cand=null;
+    for(let page=1;page<=10&&!cand;page++){const list=await Sync.api("/gists/"+gid+"/commits?per_page=100&page="+page);if(!list||!list.length)break;
+      cand=list.find(c=>new Date(c.committed_at).getTime()<=X-1000)}
+    if(cand){const g=await Sync.api("/gists/"+gid+"/"+cand.version);prev={tasks:{},logs:{},notes:{},meta:{},deleted:{}};
+      for(const n in g.files||{}){if(!/^compass(-\w+)?\.json$/.test(n))continue;try{combine(prev,JSON.parse(await Sync.text(g.files[n])))}catch(e){}}}
+  }
+  const now=Date.now();let n=0;
+  COLS.forEach(c=>Object.keys(S[c]).forEach(id=>{const r=S[c][id],p=c+"/"+id;if(!r||r._t!==X||(c==="meta"&&id==="migrated"))return;
+    const old=prev&&prev[c][id];
+    if(old&&old._t!==X){replaceInPlace(r,JSON.parse(JSON.stringify(old)));r._t=now;Sync.markRec(c,r);dirty.add(p);n++}
+    else if(S.deleted[p]||(prev&&prev.deleted[p])){Sync.markShard(r._s||Sync.shardOf(c,r));delete S[c][id];S.deleted[p]=now;Sync.markShard("core");dirty.add(p);dirty.add("_deleted");n++}}));
+  if(withHistory){S.meta.repaired={id:"repaired",at:now,found:!!prev,_t:now};Sync.markRec("meta",S.meta.repaired);dirty.add("meta/repaired")}
+  schedule();return n;
+}
+
 /* ======== moving over from the earlier, bigger version ======== */
 const toMs=v=>typeof v==="number"?v:typeof v==="string"&&v?parse(v.slice(0,10)).getTime():0;
+/* Old data is stamped as the oldest possible edit (_t:1): it fills gaps but can never overwrite anything
+   newer, wherever and whenever it gets imported. */
 function migrate(o){
-  const now=Date.now(),T=x=>{x._t=now;return x};
+  const now=Date.now(),T=x=>{x._t=1;return x};
   Object.values(o.tasks||{}).forEach(t=>{if(!t||!t.id||!t.text||S.tasks[t.id])return;
     S.tasks[t.id]=T({id:t.id,text:t.text,when:t.due||"",done:!!t.done,doneAt:t.done?(toMs(t.doneAt)||t.created||now):0,created:t.created||now})});
   Object.values(o.events||{}).forEach(ev=>{if(!ev||!ev.id||!ev.title||S.tasks[ev.id])return;const tm=/^\d{1,2}:\d{2}$/.test(ev.time||"")?fromMin(toMin(ev.time)):"";
@@ -676,7 +704,7 @@ function migrate(o){
     else if(!span(k)){const id="rv-"+k;if(!S.notes[id])S.notes[id]=T({id,kind:"journal",title:"Review · "+k,body:text,pinned:false,created:now,updated:now})}});
   const g=S.meta.growth;if(!g||g.seeded){const tree=growthFromOld(o);if(tree)S.meta.growth=T({id:"growth",root:tree})}
   S.meta.migrated=T({id:"migrated",at:now});
-  COLS.forEach(c=>Object.keys(S[c]).forEach(id=>{const r=S[c][id];if(r._t===now){Sync.markRec(c,r);dirty.add(c+"/"+id)}}));schedule();
+  COLS.forEach(c=>Object.keys(S[c]).forEach(id=>{const r=S[c][id];if(r._t===1){Sync.markRec(c,r);dirty.add(c+"/"+id)}}));schedule();
 }
 const SPHERES=[["Roots",["spirit","health","inner"]],["Circles",["close","service","network"]],["Craft",["edu","creative","career","money"]]];
 const AREA_NAMES={spirit:"Spiritual",health:"Health",inner:"Inner life",close:"Close bonds",service:"Service",network:"Network",edu:"Learning",creative:"Creative",career:"Career",money:"Money"};
@@ -1230,35 +1258,49 @@ let settingsEl=null;
 function theme(){return lsGet(TKEY)||"auto"}
 function applyTheme(){const t=theme();if(t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",t)}
 function openSettings(){
-  settingsEl=overlay(`<div class="obar"><button class="iconbtn" data-x="close" aria-label="Back">${icon("back")}</button><div class="otitle">Settings</div></div><div class="editor settings"></div>`);
+  settingsEl=overlay(`<div class="obar"><button class="iconbtn" data-x="close" aria-label="Back">${icon("back")}</button><div class="otitle">Settings</div></div>
+  <div class="editor settings">
+    <section><h3>Appearance</h3><p>Soft light, calm dark, or follow your device.</p><div class="seg" id="themeseg">${[["auto","Auto"],["light","Light"],["dark","Dark"]].map(([k,l])=>`<button data-x="theme" data-v="${k}">${l}</button>`).join("")}</div></section>
+    <section><h3>Daily rituals</h3><p>Small things to tick off each day in Review.</p><div id="ritlist"></div>
+      <form class="add ritform"><input placeholder="e.g. Fajr, morning walk, read 10 pages" aria-label="New ritual" autocomplete="off" enterkeyhint="done"><button aria-label="Add ritual">${icon("plus")}</button></form></section>
+    <section><h3>Sync across devices</h3><div id="syncbox"></div></section>
+    <section><h3>Your data</h3><p id="datainfo"></p><div class="row"><button class="btn ghost" data-x="export">Export a copy</button><label class="btn ghost">Import<input type="file" accept=".json,application/json" hidden></label></div></section>
+  </div>`);
   const o=settingsEl;o._close=()=>{closeOverlay(o);settingsEl=null;render()};
   o.addEventListener("click",async e=>{const b=e.target.closest("[data-x]");if(!b)return;const x=b.dataset.x;
     if(x==="close")o._close();
-    else if(x==="theme"){lsSet(TKEY,b.dataset.v);applyTheme();paintSettings()}
-    else if(x==="rdel"){const R=S.meta.rituals;R.list=R.list.filter(r=>r.id!==b.dataset.v);touch("meta","rituals");paintSettings()}
+    else if(x==="theme"){lsSet(TKEY,b.dataset.v);applyTheme();paintTheme()}
+    else if(x==="rdel"){const R=S.meta.rituals,gone=R.list.find(r=>r.id===b.dataset.v);R.list=R.list.filter(r=>r.id!==b.dataset.v);touch("meta","rituals");paintRituals();
+      if(gone)toast("Removed “"+gone.label+"”",()=>{R.list=R.list.concat(gone);touch("meta","rituals");paintRituals()})}
     else if(x==="connect"){const tok=$("input.tok",o).value.trim();if(!tok)return;b.disabled=true;b.textContent="Connecting…";
-      try{await Sync.connect(tok);toast("Sync is on ✓")}catch(err){Sync.setCfg(null);toast(err.status===401?"That token didn't work — check it has the gist permission":"Couldn't reach GitHub — try again")}paintSettings()}
-    else if(x==="syncnow"){b.disabled=true;b.textContent="Syncing…";await Sync.run();if(Sync.status==="ok")toast("Synced ✓")}
-    else if(x==="disconnect"){Sync.disconnect();paintSettings()}
+      try{await Sync.connect(tok);toast("Sync is on ✓")}catch(err){Sync.setCfg(null);toast(err.status===401?"That token didn't work — check it has the gist permission":"Couldn't reach GitHub — try again")}paintSync(true)}
+    else if(x==="syncnow"){b.disabled=true;b.textContent="Syncing…";await Sync.run();paintSync(true);if(Sync.status==="ok")toast("Synced ✓")}
+    else if(x==="disconnect"){Sync.disconnect();paintSync(true)}
     else if(x==="export"){await flush();const blob=new Blob([JSON.stringify(snapshot())],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="life-compass-"+todayK()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}});
-  o.addEventListener("submit",e=>{e.preventDefault();const inp=$("input",e.target),v=inp.value.trim();if(!v)return;
-    const R=S.meta.rituals=S.meta.rituals||{id:"rituals",list:[]};R.list=(R.list||[]).concat({id:uid(),label:v});touch("meta","rituals");paintSettings();$(".ritform input",o).focus()});
+  o.addEventListener("submit",e=>{e.preventDefault();const inp=$("input",e.target),v=inp.value.replace(/\s+/g," ").trim();if(!v)return;
+    const R=S.meta.rituals=S.meta.rituals||{id:"rituals",list:[]};R.list=(R.list||[]).concat({id:uid(),label:v});touch("meta","rituals");inp.value="";paintRituals();inp.focus()});
   o.addEventListener("change",e=>{if(e.target.type!=="file"||!e.target.files[0])return;const fr=new FileReader();
     fr.onload=()=>{try{const d=JSON.parse(fr.result);if(d.app==="compass"){mergeIn(d);Sync.markAll()}else if(d.app==="lifecompass"||d.tasks||d.days)migrate(d);else throw 0;
       COLS.forEach(c=>Object.keys(S[c]).forEach(id=>dirty.add(c+"/"+id)));flush();toast("Imported ✓");paintSettings()}catch(err){toast("That file doesn't look like a Life Compass export")}};
     fr.readAsText(e.target.files[0])});
   paintSettings();
 }
-function paintSettings(){
-  const o=settingsEl;if(!o)return;const box=$(".editor",o),c=Sync.cfg(),on=Sync.on(),t=theme();
-  const ago=c&&c.last?Math.round((Date.now()-c.last)/6e4):null,count=COLS.reduce((a,k)=>a+Object.keys(S[k]).length,0);
-  box.innerHTML=`<section><h3>Appearance</h3><p>Soft light, calm dark, or follow your device.</p><div class="seg">${[["auto","Auto"],["light","Light"],["dark","Dark"]].map(([k,l])=>`<button data-x="theme" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join("")}</div></section>
-  <section><h3>Daily rituals</h3><p>Small things to tick off each day in Review.</p><div>${rituals().map(r=>`<div class="ritrow"><span>${esc(r.label)}</span><button class="iconbtn" data-x="rdel" data-v="${r.id}" aria-label="Remove ${esc(r.label)}">${icon("x")}</button></div>`).join("")}</div>
-    <form class="add ritform"><input placeholder="e.g. Fajr, morning walk, read 10 pages" aria-label="New ritual"><button aria-label="Add ritual">${icon("plus")}</button></form></section>
-  <section><h3>Sync across devices</h3>${on?`<p><span class="${Sync.status==="err"?"bad":"ok"}">●</span> ${Sync.status==="err"?esc(Sync.msg):`Connected to your private gist${ago!=null?` · synced ${ago<1?"just now":ago+" min ago"}`:""}`}</p><div class="row"><button class="btn ghost" data-x="syncnow">Sync now</button><button class="btn ghost" data-x="disconnect">Disconnect</button></div>`
-    :`<p>Use the same compass on your phone and laptop. On GitHub, create a token with only the <b>gist</b> permission (Settings → Developer settings → Personal access tokens), then paste it here on each device.</p><div class="row"><input class="tok" type="password" placeholder="GitHub token" autocomplete="off"><button class="btn" data-x="connect">Connect</button></div>`}</section>
-  <section><h3>Your data</h3><p>${count.toLocaleString("en-GB")} entries, kept in ${Store.db?"this browser's database":"this browser's storage"}${on?" and your private gist":""}. <span id="pst"></span></p><div class="row"><button class="btn ghost" data-x="export">Export a copy</button><label class="btn ghost">Import<input type="file" accept=".json,application/json" hidden></label></div></section>`;
-  try{navigator.storage.persisted().then(p=>{const s=$("#pst",o);if(s)s.textContent=p?"Protected from automatic clean-up ✓":"Tip: add the app to your home screen so the browser never clears it."})}catch(e){}
+function paintSettings(){paintTheme();paintRituals();paintSync(true);paintData()}
+function paintTheme(){if(!settingsEl)return;const t=theme();$$("#themeseg button",settingsEl).forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===t))}
+function paintRituals(){if(!settingsEl)return;$("#ritlist",settingsEl).innerHTML=rituals().map(r=>`<div class="ritrow"><span>${esc(r.label)}</span><button class="iconbtn" data-x="rdel" data-v="${r.id}" aria-label="Remove ${esc(r.label)}">${icon("x")}</button></div>`).join("");paintData()}
+/* the sync box is redrawn only when you're not typing in it */
+function paintSync(force){
+  if(!settingsEl)return;const box=$("#syncbox",settingsEl),inp=$("input.tok",box);
+  if(!force&&inp&&(document.activeElement===inp||inp.value))return;
+  const c=Sync.cfg(),on=Sync.on(),ago=c&&c.last?Math.round((Date.now()-c.last)/6e4):null;
+  box.innerHTML=on?`<p><span class="${Sync.status==="err"?"bad":"ok"}">●</span> ${Sync.status==="err"?esc(Sync.msg):`Connected to your private gist${ago!=null?` · synced ${ago<1?"just now":ago+" min ago"}`:""}`}</p><div class="row"><button class="btn ghost" data-x="syncnow">Sync now</button><button class="btn ghost" data-x="disconnect">Disconnect</button></div>`
+    :`<p>Use the same compass on your phone and laptop. On GitHub, create a token with only the <b>gist</b> permission (Settings → Developer settings → Personal access tokens), then paste it here on each device.</p><div class="row"><input class="tok" type="password" placeholder="GitHub token" autocomplete="off"><button class="btn" data-x="connect">Connect</button></div>`;
+  paintData();
+}
+function paintData(){
+  if(!settingsEl)return;const el=$("#datainfo",settingsEl),count=COLS.reduce((a,k)=>a+Object.keys(S[k]).length,0);
+  el.innerHTML=`${count.toLocaleString("en-GB")} entries, kept in ${Store.db?"this browser's database":"this browser's storage"}${Sync.on()?" and your private gist":""}. <span id="pst"></span>`;
+  try{navigator.storage.persisted().then(p=>{const s=$("#pst",el);if(s)s.textContent=p?"Protected from automatic clean-up ✓":"Tip: add the app to your home screen so the browser never clears it."})}catch(e){}
 }
 
 /* ======== events ======== */
@@ -1347,6 +1389,7 @@ setInterval(()=>{if(document.visibilityState==="visible")Sync.run()},60000);
   if(!S.meta.growth){S.meta.growth=seedGrowth();dirty.add("meta/growth")}
   if(!S.meta.rituals){S.meta.rituals={id:"rituals",list:[],_t:0};dirty.add("meta/rituals")}
   pruneDeleted();
+  if(needsRepair()&&!Sync.on())repairImport(false);
   if(dirty.size){const ok=await flush();if(ok&&fromLS&&Store.db)lsSet(LKEY,null)}
   const h=location.hash.slice(1).split("/")[0];UI.tab=TABS.some(x=>x[0]===h)?h:(lsGet(UKEY)||"plan");
   booted=true;render();
