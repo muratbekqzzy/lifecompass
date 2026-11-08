@@ -1,7 +1,7 @@
 // Offline shell for Life Compass. The page itself is network-first so updates arrive as soon as
 // you're online; fonts and icons are cache-first. Your data never passes through here — it lives
 // in the browser (and your GitHub gist, if sync is on).
-const CACHE = "lifecompass-v6";
+const CACHE = "lifecompass-v7";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "icon-180.png"];
 
 self.addEventListener("install", e => {

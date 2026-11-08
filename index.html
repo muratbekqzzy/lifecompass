@@ -21,7 +21,7 @@
   --bg:#FAF7F2;--surface:#FFFFFF;--soft:#F3EFE9;--ink:#2E2B33;--muted:#8C8693;--faint:#BDB7C2;--line:#EEE8E1;
   --plan:#6C9BC9;--plan-t:#E2EDF8;--review:#D88F5C;--review-t:#FBE8D8;--growth:#57A07A;--growth-t:#DCEFE3;--reflect:#8D7FCF;--reflect-t:#EAE6F8;
   --m1:#E9A3A8;--m2:#F1BE97;--m3:#EDD58C;--m4:#A6D6AF;--m5:#92C4E9;
-  --blob:#F9E4DC;--danger:#C9615F;--now:#E4846F;
+  --blob:#F9E4DC;--danger:#C9615F;--now:#E4846F;--money:#BC8E3A;--money-t:#F7ECD7;--pos:#3D9468;--neg:#CF6A55;
   --shadow:0 1px 2px rgba(46,43,51,.04),0 6px 22px rgba(46,43,51,.06);
   --shadow-lg:0 18px 50px rgba(46,43,51,.16);
   --serif:"Fraunces",Georgia,"Times New Roman",serif;
@@ -32,14 +32,15 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#17161C;--surface:#211F28;--soft:#2A2832;--ink:#ECE8F2;--muted:#9C97A8;--faint:#5E596A;--line:#2F2C37;
   --plan:#93B9E0;--plan-t:#1E2836;--review:#E8AD82;--review-t:#33281F;--growth:#86C3A2;--growth-t:#1C2C24;--reflect:#B3A7EA;--reflect-t:#29253D;
-  --blob:#2A2130;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.22);--shadow-lg:0 18px 50px rgba(0,0,0,.5);color-scheme:dark}}
+  --money:#E2BD78;--money-t:#33291B;--pos:#86C9A4;--neg:#F0A08C;--blob:#2A2130;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.22);--shadow-lg:0 18px 50px rgba(0,0,0,.5);color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#17161C;--surface:#211F28;--soft:#2A2832;--ink:#ECE8F2;--muted:#9C97A8;--faint:#5E596A;--line:#2F2C37;
   --plan:#93B9E0;--plan-t:#1E2836;--review:#E8AD82;--review-t:#33281F;--growth:#86C3A2;--growth-t:#1C2C24;--reflect:#B3A7EA;--reflect-t:#29253D;
-  --blob:#2A2130;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.22);--shadow-lg:0 18px 50px rgba(0,0,0,.5);color-scheme:dark}
+  --money:#E2BD78;--money-t:#33291B;--pos:#86C9A4;--neg:#F0A08C;--blob:#2A2130;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.22);--shadow-lg:0 18px 50px rgba(0,0,0,.5);color-scheme:dark}
 body[data-tab="review"]{--accent:var(--review);--tint:var(--review-t)}
 body[data-tab="growth"]{--accent:var(--growth);--tint:var(--growth-t)}
 body[data-tab="reflect"]{--accent:var(--reflect);--tint:var(--reflect-t)}
+body[data-tab="money"]{--accent:var(--money);--tint:var(--money-t)}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -276,6 +277,53 @@ textarea.stitle{font-size:19px;font-weight:500;padding:2px 12px 6px;font-family:
 .toast button{color:var(--bg);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 @media (min-width:760px){.toast{bottom:28px}}
 
+/* money */
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+.wallets{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -18px 10px;padding:4px 18px 8px}
+.wallets::-webkit-scrollbar{display:none}
+.wcard{flex:none;min-width:132px;max-width:200px;text-align:left;background:var(--surface);border-radius:16px;padding:10px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:3px;transition:box-shadow .2s}
+.wcard span{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wcard span::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+.wcard b{font-size:16px;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.wcard.on{box-shadow:0 0 0 2px var(--accent),var(--shadow)}
+.wcard.hid{opacity:.5}
+.wcard.add{min-width:0;flex-direction:row;align-items:center;gap:6px;color:var(--muted);padding:10px 16px}
+.wcard.add span::before{display:none}
+.msumhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 4px 8px;font-size:13px;color:var(--muted);min-height:30px}
+.chipx{background:var(--tint);color:var(--accent);border-radius:999px;padding:3px 10px;font-weight:600;font-size:12.5px}
+.msum{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:8px}
+.msum span{display:block;font-size:12px;color:var(--muted)}
+.msum b{font-size:18px;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.msum em,.msum p{grid-column:1/-1;font-style:normal;font-size:12.5px;color:var(--muted);margin:0}
+.dayhead{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);margin:18px 6px 7px;font-weight:600}
+.dayhead b{font-variant-numeric:tabular-nums}
+.txrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 15px;border-top:1px solid var(--line)}
+.list>.txrow:first-child{border-top:0}
+.txrow:hover{background:color-mix(in srgb,var(--soft) 60%,transparent)}
+.cdot{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.txm{flex:1;min-width:0;display:flex;flex-direction:column}
+.txm b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txm small{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.crow{padding:12px 10px 12px 15px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:6px 6px;align-items:center}
+.list>.crow:first-child{border-top:0}
+.crow.zero{opacity:.55}
+.cmain{display:flex;align-items:center;gap:10px;text-align:left;min-width:0}
+.cname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cbar{height:6px;border-radius:3px;background:var(--soft);overflow:hidden}
+.cbar i{display:block;height:100%;background:var(--c);border-radius:3px}
+.cbar.over i{background:var(--neg)}
+.crow small{font-size:12.5px;color:var(--muted);grid-column:1/2}
+.crow small.neg{color:var(--neg);font-weight:600}
+.amtwrap{display:flex;align-items:baseline;gap:8px;padding:8px 12px 0}
+.amtin{flex:1;min-width:0;border:0;outline:0;background:none;font:500 38px/1.15 var(--serif);font-variant-numeric:tabular-nums;color:var(--ink)}
+#tcur{color:var(--muted);font-size:15px;font-weight:600}
+.frow input.wide{flex:1;min-width:0}
+.dotchip{display:inline-flex;align-items:center;gap:6px}
+.dotchip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+.dotchip.add::before{display:none}
+.hint{margin:5px 12px 0;color:var(--muted);font-size:12.5px}
+
 /* mind map */
 .ghead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:20px 2px 12px}
 .mapwrap{position:relative;height:calc(100dvh - 250px);min-height:380px;border-radius:24px;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
@@ -390,6 +438,7 @@ const ICON={
   cal:'<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   list:'<path d="M8 6.5h12M8 12h12M8 17.5h12M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="2"/>',
   repeat:'<path d="M17 2.5l3 3-3 3"/><path d="M4 11.5v-1a5 5 0 0 1 5-5h11"/><path d="M7 21.5l-3-3 3-3"/><path d="M20 12.5v1a5 5 0 0 1-5 5H4"/>',
+  money:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3.5"/><path d="M4 7.5v10A2.5 2.5 0 0 0 6.5 20H20V8.5H6.5A2.5 2.5 0 0 1 4 6"/><circle cx="16" cy="14.2" r="1.2"/>',
   search:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>'
 };
 const icon=n=>`<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
@@ -506,8 +555,8 @@ function firstOcc(rep,base){const t={when:base,rep};for(let i=0;i<14;i++){const 
    windows) it falls back to localStorage. Records carry _t (last edit time); deletions leave dated
    markers, so devices and tabs merge cleanly and the newer edit of the same record wins. */
 const LKEY="compass-lite",OLDKEY="lifecompass3",SKEY="compass-sync",OLDSKEY="lifecompass-sync",TKEY="compass-theme",UKEY="compass-ui",VKEY="compass-view";
-const COLS=["tasks","logs","notes","meta"];
-const S={tasks:{},logs:{},notes:{},meta:{},deleted:{}};
+const COLS=["tasks","logs","notes","meta","tx","fin"];
+const S={tasks:{},logs:{},notes:{},meta:{},tx:{},fin:{},deleted:{}};
 const dirty=new Set();let flushT=null,writing=Promise.resolve(true),booted=false,askedPersist=false;
 let bc=null;try{bc=new BroadcastChannel("compass")}catch(e){}
 const Store={db:null,
@@ -518,6 +567,9 @@ const Store={db:null,
     r.onerror=()=>{if(settled)return;settled=true;clearTimeout(t);res(null)}})},
   load(){return new Promise((res,rej)=>{const tx=this.db.transaction("rec"),st=tx.objectStore("rec"),kq=st.getAllKeys(),vq=st.getAll();
     tx.oncomplete=()=>{const out={};kq.result.forEach((k,i)=>out[k]=vq.result[i]);res(out)};tx.onerror=tx.onabort=()=>rej(tx.error)})},
+  /* the browser can close our connection (storage cleared, another tab upgrading): reconnect and keep going */
+  recover(){if(this.fixing)return;this.fixing=true;const old=this.db;try{old&&old.close()}catch(e){}
+    this.open().then(db=>{this.fixing=false;if(!db)this.db=old})},
   write(puts,dels){return new Promise((res,rej)=>{const tx=this.db.transaction("rec","readwrite"),st=tx.objectStore("rec");
     for(const k in puts)st.put(puts[k],k);dels.forEach(k=>st.delete(k));tx.oncomplete=()=>res(true);tx.onerror=tx.onabort=()=>rej(tx.error)})}
 };
@@ -529,7 +581,8 @@ function flush(){
   const paths=[...dirty];dirty.clear();const puts={},dels=[];
   paths.forEach(p=>{if(p==="_deleted"||p==="_sync")return;const i=p.indexOf("/"),r=S[p.slice(0,i)]&&S[p.slice(0,i)][p.slice(i+1)];if(r)puts[p]=r;else dels.push(p)});
   puts["_/deleted"]=S.deleted;puts["_/sync"]=Sync.state();
-  if(Store.db){writing=writing.then(()=>Store.write(puts,dels)).catch(e=>{paths.forEach(p=>dirty.add(p));setTimeout(schedule,2000);toast("Couldn't save just now — retrying");return false})}
+  if(Store.db){writing=writing.then(()=>Store.write(puts,dels)).then(()=>{Store.warned=false;return true}).catch(e=>{paths.forEach(p=>dirty.add(p));Store.recover();setTimeout(schedule,1500);
+    if(!Store.warned){Store.warned=true;setTimeout(()=>{if(Store.warned)toast("Couldn't save just now — retrying")},4000)}return false})}
   else{try{localStorage.setItem(LKEY,JSON.stringify(Object.assign(snapshot(),{sync:Sync.state()})));writing=Promise.resolve(true)}
     catch(e){writing=Promise.resolve(false);toast("Storage is full — export your data from Settings")}}
   if(bc)try{bc.postMessage({puts,dels})}catch(e){}
@@ -567,7 +620,8 @@ const Sync={t:null,running:false,again:false,status:"",msg:"",dirtyS:new Set(),s
   cfg(){try{return JSON.parse(lsGet(SKEY)||"null")}catch(e){return null}},
   setCfg(c){lsSet(SKEY,c?JSON.stringify(c):null)},
   on(){const c=this.cfg();return!!(c&&c.token&&c.gist)},
-  shardOf(col,r){if(col==="meta")return"core";let y="";
+  shardOf(col,r){if(col==="meta"||col==="fin")return"core";let y="";
+    if(col==="tx")y=String(r.date||"").slice(0,4);else
     if(col==="tasks")y=String(r.when||"").slice(0,4);else if(col==="logs")y=String(r.key||"").slice(0,4);
     if(!/^\d{4}$/.test(y)&&r.created)y=String(new Date(r.created).getFullYear());return/^\d{4}$/.test(y)?y:"core"},
   markRec(col,r){const s=this.shardOf(col,r);if(r._s&&r._s!==s)this.dirtyS.add(r._s);this.dirtyS.add(s);r._s=s},
@@ -597,7 +651,7 @@ const Sync={t:null,running:false,again:false,status:"",msg:"",dirtyS:new Set(),s
   async push(){
     const shards=[...this.dirtyS];this.dirtyS.clear();
     try{
-      const B={};shards.forEach(s=>B[s]={app:"compass",v:2,shard:s,tasks:{},logs:{},notes:{},meta:{}});
+      const B={};shards.forEach(s=>{B[s]={app:"compass",v:2,shard:s};COLS.forEach(c=>B[s][c]={})});
       if(B.core)B.core.deleted=S.deleted;
       COLS.forEach(c=>{const L=S[c];for(const id in L){const r=L[id];if(!r._s)r._s=this.shardOf(c,r);const b=B[r._s];if(b)b[c][id]=r}});
       const entries=shards.map(s=>{const txt=JSON.stringify(B[s]);return["compass-"+s+".json",txt]});
@@ -698,13 +752,13 @@ function growthFromOld(o){
 function seedGrowth(){return{id:"growth",seeded:true,_t:0,root:node("My life",SPHERES.map(([s,ids])=>node(s,ids.map(id=>node(AREA_NAMES[id])))))}}
 
 /* ======== state ======== */
-const UI={tab:"plan",plan:{scope:"day",at:new Date()},review:{scope:"day",at:new Date()},view:lsGet(VKEY)==="cal"?"cal":"list",
+const UI={tab:"plan",plan:{scope:"day",at:new Date()},review:{scope:"day",at:new Date()},money:{scope:"month",at:new Date(),wallet:"all",view:"list",cat:"",tag:"",limit:150},view:lsGet(VKEY)==="cal"?"cal":"list",
   kind:"journal",filter:"all",q:"",draft:"",showDone:false,day:todayK(),limit:60,calTop:null,calKey:""};
 const layers=[];
 let gmap=null,noClickUntil=0,drag=null;
 const growth=()=>S.meta.growth;
 const rituals=()=>((S.meta.rituals||{}).list)||[];
-const TABS=[["plan","Plan"],["review","Review"],["growth","Growth"],["reflect","Reflect"]];
+const TABS=[["plan","Plan"],["review","Review"],["money","Money"],["growth","Growth"],["reflect","Reflect"]];
 
 function render(){
   if(!booted)return;
@@ -712,7 +766,7 @@ function render(){
   $("#tabs").innerHTML=TABS.map(([k,l])=>`<button data-tab="${k}" aria-current="${UI.tab===k?"page":"false"}">${icon(k)}<span>${l}</span></button>`).join("");
   const v=$("#view");v.className="wrap"+(UI.tab==="growth"?" wide":"");
   if(gmap){gmap.destroy();gmap=null}
-  ({plan:renderPlan,review:renderReview,growth:renderGrowth,reflect:renderReflect})[UI.tab](v);
+  ({plan:renderPlan,review:renderReview,money:renderMoney,growth:renderGrowth,reflect:renderReflect})[UI.tab](v);
   $$("textarea.auto,textarea.ttext",v).forEach(grow);
 }
 /* re-draw after outside changes (sync, another tab) without disturbing what you're typing */
@@ -941,6 +995,264 @@ function rhythm(P){
   for(let x=a;x<=b;x=addDays(x,1)){const k=ymd(x),l=S.logs[k],has=l&&(l.mood||l.wins||l.learn||l.next);
     out+=`<button data-act="rgo" data-k="${k}" class="${k===P.key?"cur":""}${k>t?" fut":""}" style="${l&&l.mood?`background:var(--m${l.mood})`:has?"background:var(--faint)":""}" title="${esc(fmt(x,{weekday:"short",day:"numeric",month:"short"}))}${l&&l.mood?" · "+MOODS[l.mood-1]:""}" aria-label="${esc(fmt(x,{day:"numeric",month:"long"}))}"></button>`}
   return`<div class="rhythm">${out}</div>`;
+}
+
+/* ======== Money: wallets, categories, spending and income ======== */
+/* Amounts are kept as whole minor units (pence, cents, tiyn) so every sum is exact.
+   A transaction is {id,date,kind:"out"|"in"|"move",amt,wallet,to,amtTo,cat,note,tag,created};
+   wallets and categories are records in `fin` ({type:"wallet"|"cat"}). A move takes money out of
+   `wallet` and puts it into `to` (amtTo when the two wallets use different currencies). */
+const CURS=["GBP","EUR","USD","KZT","TRY","RUB","UZS","KGS","AED","SAR"];
+const FIN_SEED={wallets:[["w-personal","Personal",5],["w-service","Service · community",1]],
+  out:[["c-food","Food",0],["c-transport","Transport",5],["c-home","Home & bills",2],["c-health","Health",1],["c-study","Study",4],["c-gifts","Gifts",6],["c-community","Community",3],["c-other","Other",2]],
+  in:[["c-salary","Work & salary",1],["c-freelance","Freelance",5],["c-servicein","Service funds received",3],["c-giftin","Gifts received",6],["c-otherin","Other income",2]]};
+/* everyday words that point to the starter categories, so "12 lunch" lands in Food */
+const CAT_WORDS={"c-food":"lunch dinner breakfast coffee cafe café tea grocer groceries tesco lidl aldi sainsbury asda market restaurant snack meal food pizza bread",
+  "c-transport":"bus train taxi uber bolt tube oyster fuel petrol diesel parking ticket flight metro","c-home":"rent bill bills electric electricity gas water internet wifi phone council laundry",
+  "c-health":"pharmacy doctor dentist gym medicine vitamins","c-study":"book books course uni tuition stationery printing","c-gifts":"gift present flowers",
+  "c-community":"community service sohbet program upgrade hall","c-salary":"salary wage wages pay payroll","c-servicein":"fund funds","c-freelance":"client invoice editing filming"};
+function seedFin(){if(Object.keys(S.fin).length)return;const put=r=>{r._t=0;S.fin[r.id]=r;dirty.add("fin/"+r.id)};
+  FIN_SEED.wallets.forEach(([id,name,c],i)=>put({id,type:"wallet",name,cur:"GBP",start:0,color:c,order:i,note:""}));
+  ["out","in"].forEach(k=>FIN_SEED[k].forEach(([id,name,c],i)=>put({id,type:"cat",kind:k,name,color:c,budget:0,order:i,note:""})));
+  put({id:"c-adjust",type:"cat",kind:"adj",name:"Balance adjustment",color:2,order:99,note:""})}
+const finList=t=>Object.values(S.fin).filter(r=>r.type===t).sort((a,b)=>(a.order||0)-(b.order||0)||String(a.name).localeCompare(String(b.name)));
+const wallets=all=>finList("wallet").filter(w=>all||!w.hidden);
+const cats=(kind,all)=>finList("cat").filter(c=>c.kind===kind&&(all||!c.hidden));
+const curOf=wid=>(S.fin[wid]&&S.fin[wid].cur)||"GBP";
+const nf={};
+function money(m,cur,plus){cur=cur||"GBP";m=m||0;const whole=m%100===0,k=cur+(whole?"0":"2");
+  if(!nf[k]){try{nf[k]=new Intl.NumberFormat("en-GB",{style:"currency",currency:cur,minimumFractionDigits:whole?0:2,maximumFractionDigits:2})}catch(e){nf[k]={format:v=>v.toFixed(whole?0:2)+" "+cur}}}
+  return(m<0?"−":plus&&m>0?"+":"")+nf[k].format(Math.abs(m)/100)}
+/* "12.50", "12,50", "£1,200", "12+3.40" → minor units; NaN when it isn't a number */
+function parseAmt(s){s=String(s==null?"":s).replace(/[£$€₸₺₽\s]/g,"").replace(/,(?=\d{1,2}$)/,".").replace(/,/g,"");
+  if(!s||!/^[+-]?(\d+\.?\d*|\.\d+)([+-](\d+\.?\d*|\.\d+))*$/.test(s))return NaN;let tot=0;
+  for(const m of s.matchAll(/([+-]?)(\d+\.?\d*|\.\d+)/g)){const v=Math.round(parseFloat(m[2])*100);tot+=m[1]==="-"?-v:v}return tot}
+const amtStr=m=>m?(m%100?(m/100).toFixed(2):String(m/100)):"";
+function balances(){const b={};wallets(true).forEach(w=>b[w.id]=w.start||0);
+  for(const id in S.tx){const t=S.tx[id];
+    if(t.kind==="in")b[t.wallet]=(b[t.wallet]||0)+t.amt;else if(t.kind==="out")b[t.wallet]=(b[t.wallet]||0)-t.amt;
+    else{b[t.wallet]=(b[t.wallet]||0)-t.amt;if(t.to)b[t.to]=(b[t.to]||0)+(t.amtTo||t.amt)}}
+  return b}
+function moneyPeriod(){const st=UI.money;return st.scope==="all"?{scope:"all",key:"all",s:"0000-01-01",e:"9999-12-31",title:"All time",sub:"Everything recorded",cur:true}:period(st.scope,st.at)}
+function txFor(P){const st=UI.money,w=st.wallet;const out=[];
+  for(const id in S.tx){const t=S.tx[id];if(t.date<P.s||t.date>P.e)continue;if(w!=="all"&&t.wallet!==w&&t.to!==w)continue;if(st.cat&&t.cat!==st.cat)continue;if(st.tag&&t.tag!==st.tag)continue;out.push(t)}
+  return out}
+/* what a transaction does to the wallet(s) on screen: income +, spending −, transfers only count inside one wallet */
+function effect(t){const w=UI.money.wallet;
+  if(t.kind==="in")return{cur:curOf(t.wallet),v:t.amt,k:"in"};if(t.kind==="out")return{cur:curOf(t.wallet),v:-t.amt,k:"out"};
+  if(w==="all")return{cur:curOf(t.wallet),v:0,k:"move"};
+  if(t.wallet===w)return{cur:curOf(w),v:-t.amt,k:"tout"};return{cur:curOf(w),v:t.amtTo||t.amt,k:"tin"}}
+function totals(list){const T={};list.forEach(t=>{const e=effect(t),x=T[e.cur]=T[e.cur]||{in:0,out:0,tin:0,tout:0,net:0};
+  if(e.k==="in")x.in+=e.v;else if(e.k==="out")x.out-=e.v;else if(e.k==="tin")x.tin+=e.v;else if(e.k==="tout")x.tout-=e.v;x.net+=e.v});return T}
+function lastWallet(){const st=UI.money;if(st.wallet!=="all"&&S.fin[st.wallet])return st.wallet;const l=lsGet("compass-lastw");return S.fin[l]&&!S.fin[l].hidden?l:(wallets()[0]||{}).id||""}
+function lastCat(kind){const l=lsGet("compass-lastc-"+kind);return S.fin[l]&&!S.fin[l].hidden&&S.fin[l].kind===kind?l:(cats(kind)[0]||{}).id||""}
+function defaultTxDate(){const st=UI.money,t=todayK();if(st.scope==="day")return keyOf("day",st.at);if(st.scope==="all")return t;const P=period(st.scope,st.at);return t>=P.s&&t<=P.e?t:P.s}
+/* pick a category: the one used last time for the same words, then a category name, then everyday words, then the last one used */
+function guessCat(kind,text){
+  const low=String(text||"").trim().toLowerCase();if(low){let best=null;for(const id in S.tx){const t=S.tx[id];if(t.kind===kind&&t.cat&&String(t.note||"").toLowerCase()===low&&(!best||t.created>best.created))best=t}if(best&&S.fin[best.cat]&&!S.fin[best.cat].hidden)return best.cat}
+  const words=low.split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=3);
+  if(words.length){const list=cats(kind);
+    /* the first word you type decides: "sohbet tea" is community, "tea for sohbet" is food */
+    for(const w of words){
+      const byName=list.find(c=>c.name.toLowerCase().split(/[^\p{L}]+/u).some(x=>x.length>=3&&(x.startsWith(w)||w.startsWith(x))));if(byName)return byName.id;
+      const byWord=list.find(c=>CAT_WORDS[c.id]&&CAT_WORDS[c.id].split(" ").includes(w));if(byWord)return byWord.id}}
+  return lastCat(kind)}
+/* "12.50 lunch", "+500 salary", "45 flowers #Ainur's wedding", "lunch 8.40" */
+function parseMoneyQuick(raw){
+  let s=raw.trim(),tag="";const tm=s.match(/\s*#\s*(.+)$/);if(tm){tag=tm[1].trim();s=s.slice(0,tm.index).trim()}
+  let m=s.match(/^([+-]?)\s*([£$€₸₺₽]?\s*(?:\d[\d.,]*|\.\d+)(?:\s*\+\s*\d[\d.,]*)*)\s*(.*)$/),sign,amt,text;
+  if(m){sign=m[1];amt=m[2];text=m[3]}else{m=s.match(/^(.*?)\s+([+-]?)([£$€₸₺₽]?\d[\d.,]*)$/);if(!m)return null;text=m[1];sign=m[2];amt=m[3]}
+  const a=Math.abs(parseAmt(amt));if(!a)return null;const kind=sign==="+"?"in":"out";text=text.trim();
+  return{kind,amt:a,note:text,tag,cat:guessCat(kind,text)}}
+function tagSuggestions(){const seen=new Set(),out=[];
+  Object.values(S.tx).filter(t=>t.tag).sort((a,b)=>b.date.localeCompare(a.date)).forEach(t=>{if(!seen.has(t.tag)&&out.length<40){seen.add(t.tag);out.push(t.tag)}});
+  const a=ymd(addDays(new Date(),-60)),b=ymd(addDays(new Date(),60));
+  Object.values(S.tasks).filter(t=>t.ev&&isDayKey(t.when)&&t.when>=a&&t.when<=b).forEach(t=>{if(!seen.has(t.text)){seen.add(t.text);out.push(t.text)}});
+  return out}
+
+function renderMoney(v){
+  v.innerHTML=scopeBar("money",[["all","All"]])+`<div id="mhead"></div><form class="add" data-form="money"><input id="addmoney" placeholder="12.50 lunch · +500 salary · 45 flowers #wedding" autocomplete="off" enterkeyhint="done" aria-label="Quick add: amount and what it was for"><button type="button" data-act="mnew" aria-label="Add with details">${icon("plus")}</button></form><div id="mbody"></div>`;
+  paintMoney();
+}
+function paintMoney(){
+  const head=$("#mhead"),body=$("#mbody");if(!head||!body)return;
+  const st=UI.money;if(st.wallet!=="all"&&!S.fin[st.wallet])st.wallet="all";
+  const P=moneyPeriod(),list=txFor(P),T=totals(list),w=S.fin[st.wallet];
+  const filt=st.cat?(S.fin[st.cat]||{}).name:st.tag?"# "+st.tag:"";
+  head.innerHTML=(P.scope==="all"?`<div class="pnav"><div><h2>All time</h2><div class="sub">Everything recorded</div></div></div>`:periodNav("money",P))+walletStrip()
+    +`<div class="msumhead"><span>${w?esc(w.name):"All wallets"}${filt?` · <button class="chipx" data-act="mclear">${esc(filt)} ✕</button>`:""}</span>${w?`<button class="link" data-act="mwedit">Edit wallet</button>`:""}</div>`+summaryHTML(T,w);
+  body.innerHTML=`<div class="bar" style="margin-top:16px"><div class="seg">${[["list","Transactions"],["cats","Categories"],["events","Events"]].map(([k,l])=>`<button data-act="mview" data-v="${k}" aria-pressed="${st.view===k}">${l}</button>`).join("")}</div></div>`
+    +(st.view==="cats"?catsHTML(list,P):st.view==="events"?eventsHTML(list):txListHTML(list));
+}
+function walletStrip(){
+  const b=balances(),st=UI.money,ws=wallets(true),all={};wallets().forEach(w=>{all[w.cur]=(all[w.cur]||0)+(b[w.id]||0)});
+  return`<div class="wallets"><button class="wcard${st.wallet==="all"?" on":""}" data-act="mwallet" data-v="all" style="--c:var(--ink)"><span>All wallets</span><b>${Object.keys(all).map(c=>money(all[c],c)).join(" · ")||"—"}</b></button>${ws.map(w=>`<button class="wcard${st.wallet===w.id?" on":""}${w.hidden?" hid":""}" data-act="mwallet" data-v="${w.id}" style="--c:${PAL[w.color||0]}"><span>${esc(w.name)}</span><b class="${(b[w.id]||0)<0?"neg":""}">${money(b[w.id]||0,w.cur)}</b></button>`).join("")}<button class="wcard add" data-act="mwalletnew">${icon("plus")}<span>Wallet</span></button></div>`;
+}
+function summaryHTML(T,w){
+  const curs=Object.keys(T);if(!curs.length)T[w?w.cur:(wallets()[0]||{}).cur||"GBP"]={in:0,out:0,tin:0,tout:0,net:0};
+  return Object.keys(T).map(c=>{const x=T[c];return`<div class="msum">${Object.keys(T).length>1?`<em>${c}</em>`:""}<div><span>In</span><b class="${x.in?"pos":""}">${money(x.in,c,true)}</b></div><div><span>Out</span><b class="${x.out?"neg":""}">${money(-x.out,c)}</b></div><div><span>${w?"Change":"Net"}</span><b class="${x.net>0?"pos":x.net<0?"neg":""}">${money(x.net,c,true)}</b></div>${x.tin||x.tout?`<p>Includes transfers: ${[x.tin?money(x.tin,c,true)+" in":"",x.tout?money(-x.tout,c)+" out":""].filter(Boolean).join(" · ")}</p>`:""}</div>`}).join("");
+}
+const dayLbl=k=>{const d=parse(k);return fmt(d,Object.assign({weekday:"short",day:"numeric",month:"short"},d.getFullYear()!==new Date().getFullYear()?{year:"numeric"}:{}))};
+function txRow(t){
+  const c=S.fin[t.cat],w=S.fin[t.wallet],to=S.fin[t.to],e=effect(t),sel=UI.money.wallet,mv=t.kind==="move";
+  const title=t.note||(mv?"Transfer":c?c.name:"Uncategorised");
+  const meta=[mv?`${w?w.name:"?"} → ${to?to.name:"?"}`:(t.note&&c?c.name:""),!mv&&sel==="all"&&w?w.name:"",t.tag?"# "+t.tag:""].filter(Boolean).join(" · ");
+  const amt=mv&&sel==="all"?"⇄ "+money(t.amt,curOf(t.wallet)):money(e.v,e.cur,true);
+  return`<button class="txrow" data-act="mtx" data-id="${t.id}"><span class="cdot" style="--c:${mv?"var(--faint)":PAL[(c&&c.color)||0]}"></span><span class="txm"><b>${esc(title)}</b>${meta?`<small>${esc(meta)}</small>`:""}</span><b class="amt ${e.v>0?"pos":e.v<0?"neg":""}">${amt}</b></button>`;
+}
+function txListHTML(list){
+  if(!list.length)return`<div class="empty">Nothing recorded here yet. Type an amount above, like “12.50 lunch”.</div>`;
+  list.sort((a,b)=>b.date.localeCompare(a.date)||(b.created||0)-(a.created||0));
+  const days={};list.forEach(t=>{const e=effect(t),d=days[t.date]=days[t.date]||{};d[e.cur]=(d[e.cur]||0)+e.v});
+  let h="",day="";
+  list.slice(0,UI.money.limit).forEach(t=>{if(t.date!==day){if(day)h+=`</div>`;day=t.date;const d=days[day];
+    h+=`<div class="dayhead"><span>${esc(dayLbl(day))}</span><span>${Object.keys(d).map(c=>`<b class="${d[c]>0?"pos":d[c]<0?"neg":""}">${money(d[c],c,true)}</b>`).join(" · ")}</span></div><div class="list">`}
+    h+=txRow(t)});
+  h+=`</div>`;
+  if(list.length>UI.money.limit)h+=`<button class="more-btn" data-act="mmore">Show more · ${list.length-UI.money.limit} older</button>`;
+  return h+`<button class="more-btn" data-act="mexport">Export these as a spreadsheet (CSV)</button>`;
+}
+function catsHTML(list,P){
+  const sums={in:{},out:{}};list.forEach(t=>{if(t.kind==="move")return;const k=(t.cat||"none")+"|"+curOf(t.wallet),m=sums[t.kind];m[k]=(m[k]||0)+t.amt});
+  const section=(kind,title)=>{
+    const m=sums[kind],rows=Object.keys(m).map(k=>{const[cid,cur]=k.split("|");return{cid,cur,c:S.fin[cid],v:m[k]}}).sort((a,b)=>b.v-a.v);
+    const shown=new Set(rows.map(r=>r.cid));cats(kind).forEach(c=>{if(!shown.has(c.id))rows.push({cid:c.id,cur:c.bcur||curOf(lastWallet()),c,v:0})});
+    if(!rows.length)return"";const tot={};rows.forEach(r=>tot[r.cur]=(tot[r.cur]||0)+r.v);const max=Math.max(1,...rows.map(r=>r.v));
+    return`<div class="label">${title}<span>${Object.keys(tot).filter(c=>tot[c]).map(c=>money(tot[c],c)).join(" · ")}</span></div><div class="list">${rows.map(r=>{
+      const c=r.c||{name:"Uncategorised",color:2},bud=kind==="out"&&P.scope==="month"&&c.budget&&(c.bcur||r.cur)===r.cur?c.budget:0,left=bud-r.v;
+      const pct=bud?Math.min(100,r.v/bud*100):r.v/max*100,share=tot[r.cur]?Math.round(r.v/tot[r.cur]*100):0;
+      return`<div class="crow${r.v?"":" zero"}" style="--c:${PAL[c.color||0]}"><button class="cmain" data-act="mcat" data-v="${r.cid}"><span class="cdot"></span><span class="cname">${esc(c.name)}</span><b class="amt">${money(r.v,r.cur)}</b></button>${r.c?`<button class="more" data-act="mcatedit" data-v="${r.cid}" aria-label="Edit ${esc(c.name)}">${icon("more")}</button>`:"<span></span>"}
+        <div class="cbar${bud&&left<0?" over":""}"><i style="width:${pct.toFixed(1)}%"></i></div><span></span>
+        ${bud?`<small class="${left<0?"neg":""}">${left<0?"Over budget by "+money(-left,r.cur):money(left,r.cur)+" left of "+money(bud,r.cur)}</small>`:r.v?`<small>${share}% of ${kind==="out"?"spending":"income"}${c.note?" · "+esc(c.note):""}</small>`:c.note?`<small>${esc(c.note)}</small>`:""}</div>`}).join("")}</div>`};
+  return section("out","Spending")+section("in","Income")+(P.scope!=="month"&&cats("out").some(c=>c.budget)?`<p class="hint" style="margin:10px 4px">Budgets are monthly — switch to Month to see them.</p>`:"")+`<button class="more-btn" data-act="mcatnew">+ New category</button>`;
+}
+function eventsHTML(list){
+  const m={};list.forEach(t=>{if(!t.tag||t.kind==="move")return;const cur=curOf(t.wallet),k=t.tag+"|"+cur,x=m[k]=m[k]||{tag:t.tag,cur,out:0,in:0,n:0};if(t.kind==="out")x.out+=t.amt;else x.in+=t.amt;x.n++});
+  const rows=Object.values(m).sort((a,b)=>b.out-a.out||b.in-a.in);
+  if(!rows.length)return`<div class="empty">Add an event to any entry — type “45 flowers #Ainur's wedding”, or fill in Event in the details — to see what each one cost.</div>`;
+  return`<div class="list">${rows.map(x=>`<button class="txrow" data-act="mtag" data-v="${esc(x.tag)}"><span class="cdot" style="--c:var(--accent)"></span><span class="txm"><b>${esc(x.tag)}</b><small>${x.n} entr${x.n>1?"ies":"y"}${x.in?" · received "+money(x.in,x.cur):""}</small></span><b class="amt ${x.in-x.out<0?"neg":"pos"}">${money(x.in-x.out,x.cur,true)}</b></button>`).join("")}</div>`;
+}
+function exportCSV(list){
+  const name=id=>(S.fin[id]||{}).name||"",K={in:"Income",out:"Spending",move:"Transfer"};
+  const rows=[["Date","Type","Amount","Currency","Wallet","To wallet","Category","Note","Event"]].concat(list.slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.created||0)-(b.created||0)).map(t=>
+    [t.date,K[t.kind],((t.kind==="in"?1:-1)*t.amt/100).toFixed(2),curOf(t.wallet),name(t.wallet),t.kind==="move"?name(t.to):"",t.kind==="move"?"":name(t.cat),t.note||"",t.tag||""]));
+  const csv="﻿"+rows.map(r=>r.map(v=>{v=String(v);return/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(",")).join("\r\n");
+  const P=moneyPeriod(),w=S.fin[UI.money.wallet],a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download=("money-"+(w?w.name+"-":"")+(P.scope==="all"?"all":P.key)).replace(/[^\w.-]+/g,"-")+".csv";
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function addTx(o){const id=uid();S.tx[id]=Object.assign({id,created:Date.now()},o);touch("tx",id);lsSet("compass-lastw",o.wallet);if(o.cat&&o.kind!=="move")lsSet("compass-lastc-"+o.kind,o.cat);return id}
+const txSummary=t=>{const c=S.fin[t.cat],w=S.fin[t.wallet];return money(t.kind==="in"?t.amt:-t.amt,curOf(t.wallet),true)+" · "+(c?c.name:"")+" · "+(w?w.name:"")+(t.date!==todayK()?" · "+dayLbl(t.date):"")};
+function quickMoney(raw){
+  const q=parseMoneyQuick(raw),wid=lastWallet();
+  if(!q||!wid){txSheet(null,{note:raw.replace(/^[+-]?\s*[\d.,]+\s*/,"")});return false}
+  const id=addTx({date:defaultTxDate(),kind:q.kind,amt:q.amt,wallet:wid,cat:q.cat,note:q.note,tag:q.tag});
+  toast("Added "+txSummary(S.tx[id]),()=>{drop("tx",id);paintMoney()});return true;
+}
+
+/* adding and editing one entry */
+function txSheet(id,preset){
+  const t=id?S.tx[id]:null;if(id&&!t)return;
+  const f=t?{kind:t.kind,wallet:t.wallet,to:t.to||"",cat:t.cat||"",note:t.note||"",tag:t.tag||"",date:t.date,amtTo:amtStr(t.amtTo)}
+    :Object.assign({kind:"out",wallet:lastWallet(),to:"",cat:"",note:"",tag:"",date:defaultTxDate(),amtTo:""},preset||{});
+  if(!f.cat&&f.kind!=="move")f.cat=f.note?guessCat(f.kind,f.note):lastCat(f.kind);
+  if(!wallets().length&&!t){walletSheet(null);return toast("Add a wallet first")}
+  sheet(`<div class="frow" id="tk" style="margin-top:2px"></div><div class="amtwrap"><input class="amtin" inputmode="decimal" placeholder="0" value="${esc(t?amtStr(t.amt):preset&&preset.amt?amtStr(preset.amt):"")}" aria-label="Amount" enterkeyhint="done" autocomplete="off"><span id="tcur"></span></div><div id="tbody"></div>
+    <div class="sl">Title / note</div><div class="frow"><input class="wide" data-f="note" value="${esc(f.note)}" placeholder="What was it for?" autocomplete="off"></div>
+    <div class="sl">Event</div><div class="frow"><input class="wide" data-f="tag" list="taglist" value="${esc(f.tag)}" placeholder="Optional — e.g. Ainur's wedding" autocomplete="off"><datalist id="taglist">${tagSuggestions().map(x=>`<option value="${esc(x)}">`).join("")}</datalist></div>
+    <div class="sl">Date</div><div class="frow"><input type="date" data-f="date" value="${f.date}" aria-label="Date"></div>
+    <div class="sact" id="tact"></div>`,root=>{
+    const amtIn=$(".amtin",root),tk=$("#tk",root),tb=$("#tbody",root),ta=$("#tact",root),tcur=$("#tcur",root);
+    const chips=(list,sel,attr)=>list.map(x=>`<button data-f="${attr}" data-v="${x.id}" aria-pressed="${sel===x.id}" style="--c:${PAL[x.color||0]}" class="dotchip">${esc(x.name)}</button>`).join("");
+    const paint=()=>{
+      tk.innerHTML=`<div class="seg">${[["out","Spending"],["in","Income"],["move","Transfer"]].map(([k,l])=>`<button data-f="kind" data-v="${k}" aria-pressed="${f.kind===k}">${l}</button>`).join("")}</div>`;
+      const ws=wallets().concat(t&&S.fin[t.wallet]&&S.fin[t.wallet].hidden?[S.fin[t.wallet]]:[]);tcur.textContent=curOf(f.wallet);
+      let h=`<div class="sl">${f.kind==="move"?"From wallet":"Wallet"}</div><div class="chips">${chips(ws,f.wallet,"wallet")}</div>`;
+      if(f.kind==="move"){h+=`<div class="sl">To wallet</div><div class="chips">${chips(ws.filter(w=>w.id!==f.wallet),f.to,"to")}</div>`;
+        if(f.to&&curOf(f.to)!==curOf(f.wallet))h+=`<div class="sl">Amount received in ${curOf(f.to)}</div><div class="frow"><input inputmode="decimal" data-f="amtTo" value="${esc(f.amtTo)}" placeholder="0" autocomplete="off"></div>`}
+      else{const cs=cats(f.kind).concat(f.cat&&S.fin[f.cat]&&(S.fin[f.cat].hidden||S.fin[f.cat].kind!==f.kind)?[S.fin[f.cat]]:[]);
+        h+=`<div class="sl">Category</div><div class="chips">${chips(cs,f.cat,"cat")}<button data-f="newcat" class="dotchip add">+ New</button></div><div id="newcat"></div>`}
+      tb.innerHTML=h;
+      ta.innerHTML=`${t?`<button class="btn danger" data-f="del">${icon("trash")}Delete</button>`:""}<span class="sp"></span>${t?"":`<button class="btn ghost" data-f="again">Add & next</button>`}<button class="btn" data-f="save">${t?"Save":"Add"}</button>`;
+    };
+    const val=k=>{const el=$(`[data-f="${k}"]`,root);return el?el.value:""};
+    const save=again=>{
+      const a=Math.abs(parseAmt(amtIn.value));if(!a){amtIn.focus();return toast("Enter an amount, e.g. 12.50")}
+      if(!f.wallet||!S.fin[f.wallet])return toast("Choose a wallet");
+      if(f.kind==="move"&&(!f.to||f.to===f.wallet))return toast("Choose the wallet the money goes to");
+      const o={kind:f.kind,amt:a,wallet:f.wallet,date:val("date")||todayK(),note:val("note").replace(/\s+/g," ").trim(),tag:val("tag").replace(/\s+/g," ").trim()};
+      if(f.kind==="move"){o.to=f.to;o.cat="";o.amtTo=curOf(f.to)!==curOf(f.wallet)?Math.abs(parseAmt(val("amtTo")))||0:0;if(curOf(f.to)!==curOf(f.wallet)&&!o.amtTo)return toast("Enter the amount received in "+curOf(f.to))}
+      else{o.cat=f.cat||guessCat(f.kind,o.note);o.to="";o.amtTo=0}
+      if(t){Object.assign(t,o);touch("tx",t.id);lsSet("compass-lastw",o.wallet);if(o.cat)lsSet("compass-lastc-"+o.kind,o.cat)}else addTx(o);
+      if(again){toast("Added "+txSummary(o));amtIn.value="";$('[data-f="note"]',root).value="";amtIn.focus()}else closeSheet();
+      paintMoney();
+    };
+    root.addEventListener("click",e=>{const b=e.target.closest("button[data-f]");if(!b)return;const k=b.dataset.f;
+      if(k==="kind"){f.kind=b.dataset.v;if(f.kind!=="move"){const c=S.fin[f.cat];if(!c||c.kind!==f.kind)f.cat=guessCat(f.kind,val("note"))}paint()}
+      else if(k==="wallet"){f.wallet=b.dataset.v;if(f.to===f.wallet)f.to="";paint()}
+      else if(k==="to"){f.to=b.dataset.v;paint()}
+      else if(k==="cat"){f.cat=b.dataset.v;paint()}
+      else if(k==="newcat"){$("#newcat",root).innerHTML=`<div class="frow" style="margin-top:8px"><input class="wide" id="ncname" placeholder="New category name" autocomplete="off"><button class="btn ghost" data-f="addcat">Add</button></div>`;$("#ncname",root).focus()}
+      else if(k==="addcat"){const n=$("#ncname",root).value.replace(/\s+/g," ").trim();if(!n)return;const id=uid();S.fin[id]={id,type:"cat",kind:f.kind,name:n,color:cats(f.kind,true).length%PAL.length,budget:0,order:cats(f.kind,true).length,note:""};touch("fin",id);f.cat=id;paint()}
+      else if(k==="save")save(false);else if(k==="again")save(true);
+      else if(k==="del"){const copy=JSON.parse(JSON.stringify(t));drop("tx",t.id);closeSheet();paintMoney();toast("Deleted",()=>{restore("tx",copy);paintMoney()})}});
+    root.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing&&e.target.matches("input")&&e.target.id!=="ncname"){e.preventDefault();save(false)}
+      else if(e.key==="Enter"&&e.target.id==="ncname"){e.preventDefault();$('[data-f="addcat"]',root).click()}});
+    paint();if(!t)setTimeout(()=>amtIn.focus(),60);
+  });
+}
+function walletSheet(id){
+  const w=id?S.fin[id]:null,b=balances(),used=w&&Object.values(S.tx).some(t=>t.wallet===id||t.to===id);
+  const f=w?{cur:w.cur,color:w.color||0}:{cur:(wallets()[0]||{}).cur||"GBP",color:wallets(true).length%PAL.length};
+  sheet(`<textarea class="auto stitle" rows="1" placeholder="Wallet name — e.g. Cash, Bank card, Service fund">${esc(w?w.name:"")}</textarea>
+    <div class="sl">Currency</div><div class="frow"><input data-f="cur" list="curlist" value="${esc(f.cur)}" maxlength="3" autocomplete="off" style="width:96px;text-transform:uppercase"><datalist id="curlist">${CURS.map(c=>`<option value="${c}">`).join("")}</datalist></div>
+    <div class="sl">Starting balance</div><div class="frow"><input data-f="start" inputmode="decimal" value="${w?esc(amtStr(w.start)):""}" placeholder="0" autocomplete="off"></div><p class="hint">What was in it when you started tracking it here.</p>
+    ${w?`<div class="sl">Actual balance now</div><div class="frow"><input data-f="actual" inputmode="decimal" placeholder="${esc(money(b[id]||0,w.cur))}" autocomplete="off"><button class="btn ghost" data-f="match">Match</button></div><p class="hint">Counted the real money and it's different? Enter it and an adjustment is recorded for today.</p>`:""}
+    <div class="sl">Colour</div><div class="colors" id="wcol"></div>
+    <div class="sl">Note</div><div class="frow"><input class="wide" data-f="note" value="${esc(w?w.note||"":"")}" placeholder="Optional — what this wallet is for" autocomplete="off"></div>
+    <div class="sact">${w?(used?`<button class="btn danger" data-f="hide">${w.hidden?"Show again":"Hide wallet"}</button>`:`<button class="btn danger" data-f="del">${icon("trash")}Delete</button>`):""}<span class="sp"></span><button class="btn" data-f="save">${w?"Save":"Add wallet"}</button></div>`,root=>{
+    const name=$(".stitle",root),val=k=>$(`[data-f="${k}"]`,root).value;grow(name);
+    const pc=()=>$("#wcol",root).innerHTML=PAL.map((c,i)=>`<button data-f="color" data-v="${i}" aria-pressed="${f.color===i}" style="--c:${c}" aria-label="Colour ${i+1}"></button>`).join("");pc();
+    const save=()=>{const n=name.value.replace(/\s+/g," ").trim();if(!n){name.focus();return toast("Give the wallet a name")}
+      const cur=val("cur").trim().toUpperCase();try{new Intl.NumberFormat("en-GB",{style:"currency",currency:cur})}catch(e){return toast("Use a 3-letter currency code, e.g. GBP, KZT, EUR")}
+      if(!/^[A-Z]{3}$/.test(cur))return toast("Use a 3-letter currency code, e.g. GBP, KZT, EUR");
+      const st=val("start").trim()?parseAmt(val("start")):0;if(isNaN(st))return toast("The starting balance isn't a number");
+      const o=w||{id:uid(),type:"wallet",order:wallets(true).length};Object.assign(o,{name:n,cur,start:st,color:f.color,note:val("note").trim()});
+      if(!w)S.fin[o.id]=o;touch("fin",o.id);closeSheet();if(!w)UI.money.wallet=o.id;paintMoney()};
+    root.addEventListener("click",e=>{const b2=e.target.closest("button[data-f]");if(!b2)return;const k=b2.dataset.f;
+      if(k==="color"){f.color=+b2.dataset.v;pc()}else if(k==="save")save();
+      else if(k==="match"){const a=parseAmt(val("actual"));if(isNaN(a))return toast("Enter the amount that's really in the wallet");const diff=a-(balances()[id]||0);
+        if(!diff)return toast("Already matches ✓");addTx({date:todayK(),kind:diff>0?"in":"out",amt:Math.abs(diff),wallet:id,cat:"c-adjust",note:"Balance adjustment",tag:""});closeSheet();paintMoney();toast("Recorded an adjustment of "+money(diff,w.cur,true))}
+      else if(k==="hide"){w.hidden=!w.hidden;touch("fin",id);closeSheet();if(w.hidden&&UI.money.wallet===id)UI.money.wallet="all";paintMoney()}
+      else if(k==="del"){const copy=JSON.parse(JSON.stringify(w));drop("fin",id);UI.money.wallet="all";closeSheet();paintMoney();toast("Wallet deleted",()=>{restore("fin",copy);paintMoney()})}});
+    root.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing&&(e.target===name||e.target.matches("input"))&&e.target.dataset.f!=="actual"){e.preventDefault();save()}});
+    if(!w)setTimeout(()=>name.focus(),60);
+  });
+}
+function catSheet(id,kind){
+  const c=id?S.fin[id]:null,used=c&&Object.values(S.tx).some(t=>t.cat===id);
+  const f=c?{kind:c.kind,color:c.color||0}:{kind:kind||"out",color:cats(kind||"out",true).length%PAL.length};
+  sheet(`<textarea class="auto stitle" rows="1" placeholder="Category name — e.g. Wedding gifts, Community food">${esc(c?c.name:"")}</textarea><div id="ck"></div>
+    <div class="sl">Description</div><div class="frow"><input class="wide" data-f="note" value="${esc(c?c.note||"":"")}" placeholder="Optional — what belongs here" autocomplete="off"></div>
+    <div id="cbud"></div>
+    <div class="sl">Colour</div><div class="colors" id="ccol"></div>
+    <div class="sact">${c?(used?`<button class="btn danger" data-f="hide">${c.hidden?"Show again":"Hide category"}</button>`:`<button class="btn danger" data-f="del">${icon("trash")}Delete</button>`):""}<span class="sp"></span><button class="btn" data-f="save">${c?"Save":"Add category"}</button></div>`,root=>{
+    const name=$(".stitle",root);grow(name);
+    const paint=()=>{if(f.kind!=="adj")$("#ck",root).innerHTML=`<div class="frow" style="margin-top:6px"><div class="seg">${[["out","Spending"],["in","Income"]].map(([k,l])=>`<button data-f="kind" data-v="${k}" aria-pressed="${f.kind===k}">${l}</button>`).join("")}</div></div>`;
+      const bv=$('[data-f="budget"]',root);const keep=bv?bv.value:c&&c.budget?amtStr(c.budget):"";
+      $("#cbud",root).innerHTML=f.kind==="out"?`<div class="sl">Monthly budget</div><div class="frow"><input data-f="budget" inputmode="decimal" value="${esc(keep)}" placeholder="Optional" autocomplete="off"><span class="sub">${esc((c&&c.bcur)||curOf(lastWallet()))}</span></div><p class="hint">In Month view you'll see what's left, or how much it went over.</p>`:"";
+      $("#ccol",root).innerHTML=PAL.map((x,i)=>`<button data-f="color" data-v="${i}" aria-pressed="${f.color===i}" style="--c:${x}" aria-label="Colour ${i+1}"></button>`).join("")};
+    const save=()=>{const n=name.value.replace(/\s+/g," ").trim();if(!n){name.focus();return toast("Give the category a name")}
+      const bs=$('[data-f="budget"]',root),bud=bs&&bs.value.trim()?Math.abs(parseAmt(bs.value)):0;if(isNaN(bud))return toast("The budget isn't a number");
+      const o=c||{id:uid(),type:"cat",order:cats(f.kind,true).length};Object.assign(o,{name:n,kind:f.kind,color:f.color,note:$('[data-f="note"]',root).value.trim(),budget:f.kind==="out"?bud:0,bcur:(c&&c.bcur)||curOf(lastWallet())});
+      if(!c)S.fin[o.id]=o;touch("fin",o.id);closeSheet();paintMoney()};
+    root.addEventListener("click",e=>{const b=e.target.closest("button[data-f]");if(!b)return;const k=b.dataset.f;
+      if(k==="kind"){f.kind=b.dataset.v;paint()}else if(k==="color"){f.color=+b.dataset.v;paint()}else if(k==="save")save();
+      else if(k==="hide"){c.hidden=!c.hidden;touch("fin",id);closeSheet();paintMoney()}
+      else if(k==="del"){const copy=JSON.parse(JSON.stringify(c));drop("fin",id);if(UI.money.cat===id)UI.money.cat="";closeSheet();paintMoney();toast("Category deleted",()=>{restore("fin",copy);paintMoney()})}});
+    root.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing&&(e.target===name||e.target.matches("input"))){e.preventDefault();save()}});
+    paint();if(!c)setTimeout(()=>name.focus(),60);
+  });
 }
 
 /* ======== Growth: the life map ======== */
@@ -1287,8 +1599,8 @@ document.addEventListener("click",e=>{
     case"settings":openSettings();break;
     case"gotoday":UI.plan.scope="day";UI.plan.at=new Date();setTab("plan");break;
     case"scope":st.scope=b.dataset.v;render();break;
-    case"step":st.at=shift(st.scope,st.at,+b.dataset.v);if(UI.tab==="plan")paintPlan();else render();break;
-    case"now":st.at=new Date();if(UI.tab==="plan")paintPlan();else render();break;
+    case"step":st.at=shift(st.scope,st.at,+b.dataset.v);if(UI.tab==="plan")paintPlan();else if(UI.tab==="money")paintMoney();else render();break;
+    case"now":st.at=new Date();if(UI.tab==="plan")paintPlan();else if(UI.tab==="money")paintMoney();else render();break;
     case"view":UI.view=b.dataset.v;lsSet(VKEY,UI.view);paintPlan();break;
     case"openday":{const was=UI.plan.scope;UI.plan.scope="day";UI.plan.at=parse(b.dataset.k);if(was!=="day")render();else paintPlan();break}
     case"showdone":UI.showDone=!UI.showDone;paintPlan();break;
@@ -1305,6 +1617,19 @@ document.addEventListener("click",e=>{
       $$("[data-act=mood]").forEach(x=>x.setAttribute("aria-pressed",+x.dataset.v===L.mood));const rh=$(".rhythm");if(rh)rh.outerHTML=rhythm(period(UI.review.scope,UI.review.at));break}
     case"rit":{const L=logOf(period("day",UI.review.at).key);L.r=L.r||{};L.r[b.dataset.v]=!L.r[b.dataset.v];touch("logs",L.key);b.setAttribute("aria-pressed",!!L.r[b.dataset.v]);break}
     case"rgo":{const k=b.dataset.k;UI.review=k.length===7?{scope:"month",at:parse(k)}:{scope:"day",at:parse(k)};render();break}
+    case"mwallet":{const v=b.dataset.v;if(v!=="all"&&UI.money.wallet===v)walletSheet(v);else{UI.money.wallet=v;UI.money.limit=150;paintMoney()}break}
+    case"mwalletnew":walletSheet(null);break;
+    case"mwedit":walletSheet(UI.money.wallet);break;
+    case"mview":UI.money.view=b.dataset.v;paintMoney();break;
+    case"mtx":txSheet(b.dataset.id);break;
+    case"mnew":{const inp=$("#addmoney"),raw=inp?inp.value.trim():"",q=raw?parseMoneyQuick(raw):null;if(inp)inp.value="";txSheet(null,q?{kind:q.kind,amt:q.amt,note:q.note,tag:q.tag,cat:q.cat}:raw?{note:raw}:null);break}
+    case"mcat":UI.money.cat=b.dataset.v;UI.money.tag="";UI.money.view="list";paintMoney();break;
+    case"mcatedit":catSheet(b.dataset.v);break;
+    case"mcatnew":catSheet(null,"out");break;
+    case"mtag":UI.money.tag=b.dataset.v;UI.money.cat="";UI.money.view="list";paintMoney();break;
+    case"mclear":UI.money.cat="";UI.money.tag="";paintMoney();break;
+    case"mmore":UI.money.limit+=150;paintMoney();break;
+    case"mexport":exportCSV(txFor(moneyPeriod()));break;
     case"present-growth":present(growth().root);break;
     case"qkind":UI.kind=b.dataset.v;$$("[data-act=qkind]").forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===UI.kind));break;
     case"qsave":saveQuick();break;
@@ -1316,7 +1641,9 @@ document.addEventListener("click",e=>{
   }
 });
 function saveQuick(){const q=$("#qw");if(!q||!q.value.trim())return;newNote(UI.kind,q.value.trim());UI.draft="";q.value="";grow(q);paintReflectList();toast("Saved to "+(UI.kind==="journal"?"your journal":UI.kind==="idea"?"ideas":"notes"))}
-document.addEventListener("submit",e=>{const f=e.target;if(f.dataset.form!=="task")return;e.preventDefault();const inp=$("input",f),v=inp.value.trim();if(!v)return;
+document.addEventListener("submit",e=>{const f=e.target;
+  if(f.dataset.form==="money"){e.preventDefault();const inp=$("input",f),v=inp.value.trim();if(!v)return;inp.value="";quickMoney(v);paintMoney();return}
+  if(f.dataset.form!=="task")return;e.preventDefault();const inp=$("input",f),v=inp.value.trim();if(!v)return;
   addFromInput(v);inp.value="";paintPlan();renderHeader()});
 document.addEventListener("input",e=>{const el=e.target;
   if(el.dataset.log){const L=logOf(period(UI.review.scope,UI.review.at).key);L[el.dataset.log]=el.value;touch("logs",L.key);grow(el)}
@@ -1362,6 +1689,7 @@ setInterval(()=>{if(document.visibilityState==="visible")Sync.run()},60000);
   }
   if(!S.meta.growth){S.meta.growth=seedGrowth();dirty.add("meta/growth")}
   if(!S.meta.rituals){S.meta.rituals={id:"rituals",list:[],_t:0};dirty.add("meta/rituals")}
+  seedFin();
   pruneDeleted();
   if(dirty.size){const ok=await flush();if(ok&&fromLS&&Store.db)lsSet(LKEY,null)}
   const h=location.hash.slice(1).split("/")[0];UI.tab=TABS.some(x=>x[0]===h)?h:(lsGet(UKEY)||"plan");
