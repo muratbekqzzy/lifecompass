@@ -562,8 +562,8 @@ const S={tasks:{},logs:{},notes:{},meta:{},tx:{},fin:{},deleted:{}};
 const dirty=new Set();let flushT=null,writing=Promise.resolve(true),booted=false,askedPersist=false;
 let bc=null;try{bc=new BroadcastChannel("compass")}catch(e){}
 const Store={db:null,
-  open(){return new Promise(res=>{let r;try{r=indexedDB.open("compass",1)}catch(e){return res(null)}
-    let settled=false;const t=setTimeout(()=>{settled=true;res(null)},15000);
+  open(wait){return new Promise(res=>{let r;try{r=indexedDB.open("compass",1)}catch(e){return res(null)}
+    let settled=false;const t=setTimeout(()=>{settled=true;res(null)},wait||15000);
     r.onupgradeneeded=()=>r.result.createObjectStore("rec");
     r.onsuccess=()=>{if(settled){r.result.close();return}settled=true;clearTimeout(t);this.db=r.result;this.db.onversionchange=()=>this.db.close();res(this.db)};
     r.onerror=()=>{if(settled)return;settled=true;clearTimeout(t);res(null)}})},
@@ -572,27 +572,55 @@ const Store={db:null,
   /* the browser can close our connection (storage cleared, another tab upgrading): reconnect and keep going */
   recover(){if(this.fixing)return;this.fixing=true;const old=this.db;try{old&&old.close()}catch(e){}
     this.open().then(db=>{this.fixing=false;if(!db)this.db=old})},
-  write(puts,dels){return new Promise((res,rej)=>{const tx=this.db.transaction("rec","readwrite"),st=tx.objectStore("rec");
+  /* strict = wait until the data is on disk (used when you leave the app); relaxed is faster while typing */
+  write(puts,dels,strict){return new Promise((res,rej)=>{let tx;try{tx=this.db.transaction("rec","readwrite",{durability:strict?"strict":"relaxed"})}catch(e){tx=this.db.transaction("rec","readwrite")}const st=tx.objectStore("rec");
     for(const k in puts)st.put(puts[k],k);dels.forEach(k=>st.delete(k));tx.oncomplete=()=>res(true);tx.onerror=tx.onabort=()=>rej(tx.error)})}
 };
 function snapshot(){const o={app:"compass",v:2,deleted:S.deleted};COLS.forEach(c=>o[c]=S[c]);return o}
 function applyData(o){COLS.forEach(c=>{const src=o[c]||{};Object.keys(src).forEach(id=>{if(src[id])S[c][id]=src[id]})});Object.assign(S.deleted,o.deleted||{})}
 const schedule=()=>{if(!flushT)flushT=setTimeout(flush,250)};
-function flush(){
-  clearTimeout(flushT);flushT=null;if(!dirty.size)return writing;
+/* recently deleted things, kept on this device for 30 days so anything can be brought back */
+let trash={},trashDirty=false,strictNext=false;
+/* changes handed to the database but not yet confirmed: if the app is closed mid-save they are kept in a small
+   instant store (localStorage) and put back on the next open */
+const PKEY="compass-pending",inflight=new Map();
+function savePending(){
+  if(!Store.db)return;const recs={};
+  inflight.forEach((v,k)=>recs[k]=v);
+  dirty.forEach(p=>{if(p==="_deleted"||p==="_sync")return;const i=p.indexOf("/"),L=S[p.slice(0,i)];if(L)recs[p]=L[p.slice(i+1)]||null});
+  if(!Object.keys(recs).length&&!trashDirty){if(lsGet(PKEY))lsSet(PKEY,null);return}
+  try{localStorage.setItem(PKEY,JSON.stringify({at:Date.now(),recs,deleted:S.deleted,trash}))}catch(e){}
+}
+function applyPending(){
+  const raw=lsGet(PKEY);if(!raw)return 0;let o;try{o=JSON.parse(raw)}catch(e){lsSet(PKEY,null);return 0}
+  const t=x=>(x&&x._t)||0;let n=0;
+  Object.keys(o.deleted||{}).forEach(k=>{if(!S.deleted[k]||S.deleted[k]<o.deleted[k]){S.deleted[k]=o.deleted[k];dirty.add("_deleted")}});
+  Object.entries(o.recs||{}).forEach(([p,r])=>{const i=p.indexOf("/"),L=S[p.slice(0,i)],id=p.slice(i+1);if(!L)return;
+    if(r){if(!L[id]||t(r)>=t(L[id])){L[id]=r;Sync.markRec(p.slice(0,i),r);dirty.add(p);n++}}else if(L[id]&&(S.deleted[p]||0)>=t(L[id])){Sync.markShard(L[id]._s||"core");Sync.markShard("core");delete L[id];dirty.add(p);n++}});
+  if(o.trash){Object.assign(trash,o.trash);trashDirty=true}
+  return n;
+}
+const recCount=()=>COLS.reduce((a,k)=>a+Object.keys(S[k]).length,0);
+function flush(strict){
+  clearTimeout(flushT);flushT=null;strict=strict===true||strictNext;
+  if(strict)lsSet("compass-count",String(recCount()));
+  if(!dirty.size&&!trashDirty)return writing;strictNext=false;
   const paths=[...dirty];dirty.clear();const puts={},dels=[];
   paths.forEach(p=>{if(p==="_deleted"||p==="_sync")return;const i=p.indexOf("/"),r=S[p.slice(0,i)]&&S[p.slice(0,i)][p.slice(i+1)];if(r)puts[p]=r;else dels.push(p)});
   puts["_/deleted"]=S.deleted;puts["_/sync"]=Sync.state();
-  if(Store.db){writing=writing.then(()=>Store.write(puts,dels)).then(()=>{Store.warned=false;return true}).catch(e=>{paths.forEach(p=>dirty.add(p));Store.recover();setTimeout(schedule,1500);
-    if(!Store.warned){Store.warned=true;setTimeout(()=>{if(Store.warned)toast("Couldn't save just now — retrying")},4000)}return false})}
-  else{try{localStorage.setItem(LKEY,JSON.stringify(Object.assign(snapshot(),{sync:Sync.state()})));writing=Promise.resolve(true)}
+  if(trashDirty){const cut=Date.now()-30*864e5,keep=Object.entries(trash).filter(([,v])=>v.at>cut).sort((a,b)=>b[1].at-a[1].at).slice(0,400);trash=Object.fromEntries(keep);puts["_/trash"]=trash;trashDirty=false}
+  if(Store.db){Object.keys(puts).forEach(k=>{if(!k.startsWith("_/"))inflight.set(k,puts[k])});dels.forEach(k=>inflight.set(k,null));
+    writing=writing.then(()=>Store.write(puts,dels,strict)).then(()=>{Object.keys(puts).forEach(k=>{if(inflight.get(k)===puts[k])inflight.delete(k)});dels.forEach(k=>{if(inflight.get(k)===null)inflight.delete(k)});
+      if(!inflight.size&&!dirty.size&&lsGet(PKEY))lsSet(PKEY,null);if(Store.failing){Store.failing=false;renderHeader();paintData()}Store.warned=false;return true}).catch(e=>{paths.forEach(p=>dirty.add(p));if(puts["_/trash"])trashDirty=true;Store.recover();setTimeout(schedule,1500);
+    if(!Store.warned){Store.warned=true;setTimeout(()=>{if(Store.warned){Store.failing=true;renderHeader();paintData();toast("Couldn't save just now — retrying. Your changes are kept until it works.")}},4000)}return false})}
+  else{try{localStorage.setItem(LKEY,JSON.stringify(Object.assign(snapshot(),{sync:Sync.state(),trash})));writing=Promise.resolve(true)}
     catch(e){writing=Promise.resolve(false);toast("Storage is full — export your data from Settings")}}
   if(bc)try{bc.postMessage({puts,dels})}catch(e){}
   Sync.soon();return writing;
 }
 function touch(col,id){const r=S[col][id];if(r){r._t=Date.now();Sync.markRec(col,r)}dirty.add(col+"/"+id);schedule();askPersist()}
-function drop(col,id){const r=S[col][id];if(r)Sync.markShard(r._s||Sync.shardOf(col,r));delete S[col][id];S.deleted[col+"/"+id]=Date.now();Sync.markShard("core");dirty.add(col+"/"+id);dirty.add("_deleted");schedule()}
-function restore(col,obj){const id=obj.id||obj.key;S[col][id]=obj;delete S.deleted[col+"/"+id];dirty.add("_deleted");touch(col,id)}
+function drop(col,id){const r=S[col][id];if(r){Sync.markShard(r._s||Sync.shardOf(col,r));trash[col+"/"+id]={rec:JSON.parse(JSON.stringify(r)),at:Date.now()};trashDirty=true;strictNext=true}delete S[col][id];S.deleted[col+"/"+id]=Date.now();Sync.markShard("core");dirty.add(col+"/"+id);dirty.add("_deleted");schedule()}
+function restore(col,obj){const id=obj.id||obj.key;S[col][id]=obj;delete S.deleted[col+"/"+id];if(trash[col+"/"+id]){delete trash[col+"/"+id];trashDirty=true}dirty.add("_deleted");touch(col,id)}
 function askPersist(){if(askedPersist)return;askedPersist=true;try{navigator.storage.persisted().then(p=>{if(!p)return navigator.storage.persist()}).catch(()=>{})}catch(e){}}
 /* fold another copy (a gist shard, another tab, an import) into S — updating records in place so open editors keep their reference */
 function mergeIn(r){
@@ -789,7 +817,7 @@ function renderHeader(){
   const t=todayK(),td=dayItems(t,t)[t].filter(x=>!x.ev),done=td.filter(x=>isDone(x,t)).length;
   const c=2*Math.PI*6.5,p=td.length?done/td.length:0;
   $("#todayline").innerHTML=esc(fmt(new Date(),{weekday:"long",day:"numeric",month:"long"}))+(td.length?`<span aria-hidden="true">·</span><button class="prog" data-act="gotoday"><svg class="ring" viewBox="0 0 16 16"><circle class="rb" cx="8" cy="8" r="6.5"/><circle class="rf" cx="8" cy="8" r="6.5" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-p)}" transform="rotate(-90 8 8)"/></svg>${done===td.length?"All done today ✨":`${done} of ${td.length} done`}</button>`:"");
-  $("[data-act=settings]").innerHTML=icon("sliders")+(Sync.status==="err"&&Sync.on()?'<span class="syncdot" title="Sync needs attention"></span>':"");
+  $("[data-act=settings]").innerHTML=icon("sliders")+(Store.failing||(Sync.status==="err"&&Sync.on())?`<span class="syncdot" title="${Store.failing?"Saving needs attention":"Sync needs attention"}"></span>`:"");
 }
 function scopeBar(tab,extra){const st=UI[tab];return`<div class="bar"><div class="seg" role="group" aria-label="Time scale">${SCOPES.concat(extra||[]).map(([k,l])=>`<button data-act="scope" data-tab-of="${tab}" data-v="${k}" aria-pressed="${st.scope===k}">${l}</button>`).join("")}</div></div>`}
 function periodNav(tab,P,toggle){return`<div class="pnav"><div><h2>${esc(P.title)}</h2><div class="sub">${esc(P.sub)}</div></div><div class="arrows">${P.cur?"":`<button class="link" data-act="now" data-tab-of="${tab}">Now</button>`}${toggle?`<div class="viewtog" role="group" aria-label="View"><button data-act="view" data-v="list" aria-pressed="${UI.view!=="cal"}" aria-label="List view">${icon("list")}</button><button data-act="view" data-v="cal" aria-pressed="${UI.view==="cal"}" aria-label="Calendar view">${icon("cal")}</button></div>`:""}<button class="iconbtn" data-act="step" data-tab-of="${tab}" data-v="-1" aria-label="Previous">${icon("left")}</button><button class="iconbtn" data-act="step" data-tab-of="${tab}" data-v="1" aria-label="Next">${icon("right")}</button></div></div>`}
@@ -1555,9 +1583,9 @@ function sheet(html,bind){closeSheet();const b=document.createElement("div");b.c
   b.addEventListener("pointerdown",e=>{b._down=e.target===b});b.onclick=e=>{if(e.target===b&&b._down)closeSheet()};document.body.appendChild(b);layers.push(closeSheet);bind&&bind(b)}
 function closeSheet(){const b=$(".sheet-back");if(b)b.remove();const ix=layers.indexOf(closeSheet);if(ix>-1)layers.splice(ix,1);if(!layers.length&&pendingRender)setTimeout(softRender)}
 let toastT=null;
-function toast(msg,undo){const old=$(".toast");if(old)old.remove();clearTimeout(toastT);const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");
+function toast(msg,undo,ms){const old=$(".toast");if(old)old.remove();clearTimeout(toastT);const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");
   t.innerHTML=`<span>${esc(msg)}</span>${undo?"<button>Undo</button>":""}`;if(undo)t.querySelector("button").onclick=()=>{t.remove();undo()};
-  document.body.appendChild(t);toastT=setTimeout(()=>t.remove(),5000)}
+  document.body.appendChild(t);toastT=setTimeout(()=>t.remove(),ms||5000)}
 
 /* ======== settings ======== */
 let settingsEl=null;
@@ -1570,7 +1598,7 @@ function openSettings(){
     <section><h3>Daily rituals</h3><p>Small things to tick off each day in Review.</p><div id="ritlist"></div>
       <form class="add ritform"><input placeholder="e.g. Fajr, morning walk, read 10 pages" aria-label="New ritual" autocomplete="off" enterkeyhint="done"><button aria-label="Add ritual">${icon("plus")}</button></form></section>
     <section><h3>Sync across devices</h3><div id="syncbox"></div></section>
-    <section><h3>Your data</h3><p id="datainfo"></p><div class="row"><button class="btn ghost" data-x="export">Export a copy</button><label class="btn ghost">Import<input type="file" accept=".json,application/json" hidden></label></div></section>
+    <section><h3>Your data</h3><div id="datainfo"></div><div class="row"><button class="btn ghost" data-x="export">Export a copy</button><label class="btn ghost">Import<input type="file" accept=".json,application/json" hidden></label></div></section>
   </div>`);
   const o=settingsEl;o._close=()=>{closeOverlay(o);settingsEl=null;render()};
   o.addEventListener("click",async e=>{const b=e.target.closest("[data-x]");if(!b)return;const x=b.dataset.x;
@@ -1582,7 +1610,8 @@ function openSettings(){
       try{await Sync.connect(tok);toast("Sync is on ✓")}catch(err){Sync.setCfg(null);toast(err.status===401?"That token didn't work — check it has the gist permission":"Couldn't reach GitHub — try again")}paintSync(true)}
     else if(x==="syncnow"){b.disabled=true;b.textContent="Syncing…";await Sync.run();paintSync(true);if(Sync.status==="ok")toast("Synced ✓")}
     else if(x==="disconnect"){Sync.disconnect();paintSync(true)}
-    else if(x==="export"){await flush();const blob=new Blob([JSON.stringify(snapshot())],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="life-compass-"+todayK()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}});
+    else if(x==="trestore"){const t=trash[b.dataset.v];if(!t)return;const i=b.dataset.v.indexOf("/");restore(b.dataset.v.slice(0,i),t.rec);paintData();toast("Restored ✓");if(booted&&!$(".overlay:not(.settings-ov)"))render()}
+    else if(x==="export"){lsSet("compass-lastexport",String(Date.now()));await flush();const blob=new Blob([JSON.stringify(snapshot())],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="life-compass-"+todayK()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}});
   o.addEventListener("submit",e=>{e.preventDefault();const inp=$("input",e.target),v=inp.value.replace(/\s+/g," ").trim();if(!v)return;
     const R=S.meta.rituals=S.meta.rituals||{id:"rituals",list:[]};R.list=(R.list||[]).concat({id:uid(),label:v});touch("meta","rituals");inp.value="";paintRituals();inp.focus()});
   o.addEventListener("change",e=>{if(e.target.type!=="file"||!e.target.files[0])return;const fr=new FileReader();
@@ -1603,10 +1632,25 @@ function paintSync(force){
     :`<p>Use the same compass on your phone and laptop. On GitHub, create a token with only the <b>gist</b> permission (Settings → Developer settings → Personal access tokens), then paste it here on each device.</p><div class="row"><input class="tok" type="password" placeholder="GitHub token" autocomplete="off"><button class="btn" data-x="connect">Connect</button></div>`;
   paintData();
 }
+function recLabel(col,r){r=r||{};
+  if(col==="tasks")return(r.ev?"Event · ":"Task · ")+(r.text||"");
+  if(col==="notes")return r.kind==="map"?"Map · "+((r.root||{}).text||"Untitled"):"Entry · "+(r.title||String(r.body||"").split("\n")[0]||"Untitled");
+  if(col==="tx")return"Money · "+money(r.kind==="in"?r.amt:-r.amt,curOf(r.wallet),true)+(r.note?" "+r.note:"");
+  if(col==="fin")return(r.type==="wallet"?"Wallet · ":"Category · ")+(r.name||"");
+  if(col==="logs")return"Review · "+r.key;return col}
+const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" day"+(Math.round(m/1440)>1?"s":"")+" ago"};
 function paintData(){
-  if(!settingsEl)return;const el=$("#datainfo",settingsEl),count=COLS.reduce((a,k)=>a+Object.keys(S[k]).length,0);
-  el.innerHTML=`${count.toLocaleString("en-GB")} entries, kept in ${Store.db?"this browser's database":"this browser's storage"}${Sync.on()?" and your private gist":""}. <span id="pst"></span>`;
+  if(!settingsEl)return;const el=$("#datainfo",settingsEl);if(!el)return;
+  const c=Sync.cfg(),le=+(lsGet("compass-lastexport")||0),items=Object.entries(trash).sort((a,b)=>b[1].at-a[1].at);
+  const tb=$("#trashbox",el),open=tb&&tb.open;
+  el.innerHTML=`<p>${recCount().toLocaleString("en-GB")} entries, kept in ${Store.db?"this browser's database":"this browser's basic storage"}<span id="pused"></span>. <span id="pst"></span></p>
+    <p>${Store.failing?`<span class="bad">●</span> Some changes are waiting to save — retrying. Keep the app open for a moment.`:`<span class="ok">●</span> Everything is saved on this device.`}</p>
+    <p>${Sync.on()?`Backed up to your private gist${c&&c.last?" · last synced "+ago(c.last):""} — GitHub keeps every earlier version too.`:`Not backed up yet — turn on sync above, or export a copy now and then.`}${le?` Last exported ${ago(le)}.`:""}</p>
+    <div class="row"><button class="btn ghost" data-x="export">Export a copy</button><label class="btn ghost">Import<input type="file" accept=".json,application/json" hidden></label></div>
+    ${items.length?`<details id="trashbox" style="margin-top:14px"${open?" open":""}><summary style="cursor:pointer;font-weight:600">Recently deleted · ${items.length}</summary><p style="margin:6px 0 4px">Anything deleted on this device in the last 30 days.</p>${items.slice(0,60).map(([k,v])=>{const col=k.slice(0,k.indexOf("/")),back=!!S[col][k.slice(k.indexOf("/")+1)];
+      return`<div class="ritrow"><span>${esc(recLabel(col,v.rec))}<br><small style="color:var(--muted)">deleted ${ago(v.at)}</small></span>${back?`<small style="color:var(--muted)">restored</small>`:`<button class="btn ghost" data-x="trestore" data-v="${esc(k)}">Restore</button>`}</div>`}).join("")}</details>`:""}`;
   try{navigator.storage.persisted().then(p=>{const s=$("#pst",el);if(s)s.textContent=p?"Protected from automatic clean-up ✓":"Tip: add the app to your home screen so the browser never clears it."})}catch(e){}
+  try{navigator.storage.estimate().then(e=>{const s=$("#pused",el);if(s&&e&&e.usage)s.textContent=" · "+(e.usage>1048576?(e.usage/1048576).toFixed(1)+" MB":Math.max(1,Math.round(e.usage/1024))+" KB")+" used"})}catch(e){}
 }
 
 /* ======== events ======== */
@@ -1617,6 +1661,7 @@ document.addEventListener("click",e=>{
   const b=e.target.closest("[data-act]");if(!b)return;const act=b.dataset.act,st=UI[b.dataset.tabOf];
   switch(act){
     case"settings":openSettings();break;
+    case"reload":location.reload();break;
     case"gotoday":UI.plan.scope="day";UI.plan.at=new Date();setTab("plan");break;
     case"scope":st.scope=b.dataset.v;render();break;
     case"step":st.at=shift(st.scope,st.at,+b.dataset.v);if(UI.tab==="plan")paintPlan();else if(UI.tab==="money")paintMoney();else render();break;
@@ -1683,10 +1728,11 @@ document.addEventListener("focusout",e=>{const el=e.target;
   if(pendingRender)setTimeout(()=>{const a=document.activeElement;if(!(a&&a.matches&&a.matches("textarea.ttext")))softRender()},0)});
 document.addEventListener("paste",e=>{if(!e.target.classList||!e.target.classList.contains("ttext"))return;e.preventDefault();
   const el=e.target,txt=(e.clipboardData||window.clipboardData).getData("text").replace(/\s+/g," ");el.setRangeText(txt,el.selectionStart,el.selectionEnd,"end");grow(el)});
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){flush();return}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){flush(true);savePending();return}
   if(UI.day!==todayK()){const was=UI.day;UI.day=todayK();["plan","review"].forEach(k=>{if(ymd(UI[k].at)===was)UI[k].at=new Date()});softRender()}
   Sync.run()});
-addEventListener("pagehide",()=>flush());
+addEventListener("pagehide",()=>{flush(true);savePending()});
+document.addEventListener("freeze",()=>{flush(true);savePending()});
 addEventListener("online",()=>Sync.run());
 addEventListener("hashchange",()=>{const t=location.hash.slice(1).split("/")[0];if(t&&t!==UI.tab)setTab(t)});
 setInterval(()=>{if(document.visibilityState==="visible")Sync.run()},60000);
@@ -1694,26 +1740,42 @@ setInterval(()=>{if(document.visibilityState==="visible")Sync.run()},60000);
 /* ======== boot ======== */
 (async function boot(){
   applyTheme();
-  await Store.open();
+  const wait=ms=>new Promise(r=>setTimeout(r,ms)),usedBefore=lsGet("compass-idb")==="1";
+  if(!await Store.open()){await wait(700);await Store.open(6000)}
   let data=null,fromLS=false;
-  if(Store.db){try{data=await Store.load()}catch(e){Store.db=null}}
+  for(let i=0;Store.db&&i<3&&!data;i++){try{data=await Store.load()}catch(e){await wait(500);if(i===1){const old=Store.db;try{old.close()}catch(_){}Store.db=null;await Store.open(6000)}}}
+  if(!data&&usedBefore){
+    /* the database exists but won't open right now: say so, change nothing, and let you try again */
+    $("#view").innerHTML=`<div class="empty" style="padding-top:60px">Your data couldn't be opened just now.<br>Nothing has been changed or lost.<br><br><button class="btn" data-act="reload" style="font-style:normal">Try again</button></div>`;
+    return;
+  }
+  if(!data)Store.db=null;
+  if(Store.db)lsSet("compass-idb","1");
+  const lastCount=+(lsGet("compass-count")||0);
   if(data&&Object.keys(data).length){
-    for(const k in data){if(k==="_/deleted")Object.assign(S.deleted,data[k]||{});else if(k==="_/sync")Sync.restoreState(data[k]);
+    for(const k in data){if(k==="_/deleted")Object.assign(S.deleted,data[k]||{});else if(k==="_/sync")Sync.restoreState(data[k]);else if(k==="_/trash")trash=data[k]||{};
       else{const i=k.indexOf("/"),c=k.slice(0,i);if(S[c]&&data[k])S[c][k.slice(i+1)]=data[k]}}
   }else{
     const raw=lsGet(LKEY);
-    if(raw){try{const o=JSON.parse(raw);applyData(o);if(o.sync)Sync.restoreState(o.sync);fromLS=true}catch(e){}}
+    if(raw){try{const o=JSON.parse(raw);applyData(o);if(o.sync)Sync.restoreState(o.sync);if(o.trash)trash=o.trash;fromLS=true}catch(e){}}
     else{const old=lsGet(OLDKEY);if(old){try{migrate(JSON.parse(old))}catch(e){console.warn("Could not bring over earlier data",e)}}
       const os=lsGet(OLDSKEY);if(os&&!Sync.cfg()){try{const c=JSON.parse(os);if(c&&c.token&&c.gist)Sync.setCfg({token:c.token,gist:c.gist})}catch(e){}}}
     if(Store.db)COLS.forEach(c=>Object.keys(S[c]).forEach(id=>dirty.add(c+"/"+id)));
   }
+  const loaded=recCount();
+  if(Store.db)applyPending();
   if(!S.meta.growth){S.meta.growth=seedGrowth();dirty.add("meta/growth")}
   if(!S.meta.rituals){S.meta.rituals={id:"rituals",list:[],_t:0};dirty.add("meta/rituals")}
   seedFin();
   pruneDeleted();
   if(dirty.size){const ok=await flush();if(ok&&fromLS&&Store.db)lsSet(LKEY,null)}
   const h=location.hash.slice(1).split("/")[0];UI.tab=TABS.some(x=>x[0]===h)?h:(lsGet(UKEY)||"plan");
+  const cleared=lastCount>10&&loaded<5;
   booted=true;render();
+  if(cleared)toast(Sync.on()?"This browser cleared the app's saved data — bringing everything back from your sync…":"This browser cleared the app's saved data. Import your latest backup in Settings to bring it back.",null,12000);
+  else if(!Store.db)toast("This browser isn't letting the app use its full storage (a private window?). Turn on sync or export backups so nothing is lost.",null,9000);
+  else if(!Sync.on()&&recCount()>40){const le=+(lsGet("compass-lastexport")||0),lr=+(lsGet("compass-lastremind")||0),now=Date.now();
+    if(now-le>14*864e5&&now-lr>7*864e5){lsSet("compass-lastremind",String(now));setTimeout(()=>toast("Tip: keep a backup — turn on sync, or export a copy in Settings now and then.",null,8000),2500)}}
   Sync.run();
   if("serviceWorker"in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 })();
