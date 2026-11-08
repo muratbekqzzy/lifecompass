@@ -305,7 +305,7 @@ textarea.stitle{font-size:19px;font-weight:500;padding:2px 12px 6px;font-family:
 .txm b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .txm small{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .amt{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
-.crow{padding:12px 10px 12px 15px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:6px 6px;align-items:center}
+.crow{background:var(--surface);position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:box-shadow .15s;padding:12px 10px 12px 15px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:6px 6px;align-items:center}
 .list>.crow:first-child{border-top:0}
 .crow.zero{opacity:.55}
 .cmain{display:flex;align-items:center;gap:10px;text-align:left;min-width:0}
@@ -323,6 +323,8 @@ textarea.stitle{font-size:19px;font-weight:500;padding:2px 12px 6px;font-family:
 .dotchip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
 .dotchip.add::before{display:none}
 .hint{margin:5px 12px 0;color:var(--muted);font-size:12.5px}
+
+.crow.dragging{z-index:3;box-shadow:var(--shadow-lg);border-radius:14px;border-top-color:transparent;opacity:1}
 
 /* mind map */
 .ghead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:20px 2px 12px}
@@ -913,8 +915,25 @@ document.addEventListener("pointerdown",e=>{if(e.target.closest&&e.target.closes
 document.addEventListener("pointermove",calMove,{passive:false});
 document.addEventListener("pointerup",calUp);
 document.addEventListener("pointercancel",()=>{if(drag&&!drag.on){clearTimeout(drag.timer);drag=null}else calUp()});
-document.addEventListener("touchmove",e=>{if(drag&&drag.on)e.preventDefault()},{passive:false});
-document.addEventListener("contextmenu",e=>{if(e.target.closest&&e.target.closest(".blk"))e.preventDefault()});
+let cdrag=null;
+function cdStart(){cdrag.on=true;cdrag.row.classList.add("dragging");try{navigator.vibrate&&navigator.vibrate(8)}catch(_){}}
+document.addEventListener("pointerdown",e=>{const row=e.target.closest&&e.target.closest(".crow[data-cid]");if(!row||e.target.closest(".more")||(e.pointerType==="mouse"&&e.button!==0))return;
+  cdrag={row,list:row.parentElement,x:e.clientX,y0:e.clientY,y:e.clientY,id:e.pointerId,on:false,touch:e.pointerType!=="mouse",timer:null};
+  if(cdrag.touch)cdrag.timer=setTimeout(()=>{if(cdrag&&!cdrag.on)cdStart()},320)});
+document.addEventListener("pointermove",e=>{const d=cdrag;if(!d||e.pointerId!==d.id)return;
+  if(!d.on){const m=Math.hypot(e.clientX-d.x,e.clientY-d.y0);if(d.touch){if(m>8){clearTimeout(d.timer);cdrag=null}return}if(m<5)return;cdStart()}
+  e.preventDefault();const r=d.row,prev=r.previousElementSibling,next=r.nextElementSibling,ok=x=>x&&x.dataset&&x.dataset.cid;let dy=e.clientY-d.y;
+  if(ok(prev)&&dy<-prev.offsetHeight/2){d.list.insertBefore(r,prev);d.y-=prev.offsetHeight;dy=e.clientY-d.y}
+  else if(ok(next)&&dy>next.offsetHeight/2){d.list.insertBefore(next,r);d.y+=next.offsetHeight;dy=e.clientY-d.y}
+  r.style.transform=`translateY(${dy}px)`},{passive:false});
+function cdEnd(e){const d=cdrag;if(!d||e.pointerId!==d.id)return;clearTimeout(d.timer);cdrag=null;if(!d.on)return;
+  noClickUntil=Date.now()+400;d.row.style.transform="";d.row.classList.remove("dragging");
+  const kind=d.row.dataset.kind,ids=$$(".crow[data-cid]",d.list).map(x=>x.dataset.cid);
+  ids.map(id=>S.fin[id]).filter(Boolean).concat(cats(kind,true).filter(c=>!ids.includes(c.id))).forEach((c,i)=>{if(c.order!==i){c.order=i;touch("fin",c.id)}});
+  paintMoney()}
+document.addEventListener("pointerup",cdEnd);document.addEventListener("pointercancel",cdEnd);
+document.addEventListener("touchmove",e=>{if((drag&&drag.on)||(cdrag&&cdrag.on))e.preventDefault()},{passive:false});
+document.addEventListener("contextmenu",e=>{if(e.target.closest&&e.target.closest(".blk,.crow"))e.preventDefault()});
 setInterval(()=>{const n=new Date(),m=n.getHours()*60+n.getMinutes();$$(".now").forEach(x=>x.style.top=m*HOUR/60+"px")},60000);
 
 /* one sheet for adding and editing: type, when, time block, repeat, colour */
@@ -1117,14 +1136,15 @@ function catsHTML(list,P){
   const section=(kind,title)=>{
     const m=sums[kind],rows=Object.keys(m).map(k=>{const[cid,cur]=k.split("|");return{cid,cur,c:S.fin[cid],v:m[k]}}).sort((a,b)=>b.v-a.v);
     const shown=new Set(rows.map(r=>r.cid));cats(kind).forEach(c=>{if(!shown.has(c.id))rows.push({cid:c.id,cur:c.bcur||curOf(lastWallet()),c,v:0})});
+    rows.sort((x,y)=>(x.c?x.c.order||0:1e9)-(y.c?y.c.order||0:1e9));
     if(!rows.length)return"";const tot={};rows.forEach(r=>tot[r.cur]=(tot[r.cur]||0)+r.v);const max=Math.max(1,...rows.map(r=>r.v));
     return`<div class="label">${title}<span>${Object.keys(tot).filter(c=>tot[c]).map(c=>money(tot[c],c)).join(" · ")}</span></div><div class="list">${rows.map(r=>{
       const c=r.c||{name:"Uncategorised",color:2},bud=kind==="out"&&P.scope==="month"&&c.budget&&(c.bcur||r.cur)===r.cur?c.budget:0,left=bud-r.v;
       const pct=bud?Math.min(100,r.v/bud*100):r.v/max*100,share=tot[r.cur]?Math.round(r.v/tot[r.cur]*100):0;
-      return`<div class="crow${r.v?"":" zero"}" style="--c:${PAL[c.color||0]}"><button class="cmain" data-act="mcat" data-v="${r.cid}"><span class="cdot"></span><span class="cname">${esc(c.name)}</span><b class="amt">${money(r.v,r.cur)}</b></button>${r.c?`<button class="more" data-act="mcatedit" data-v="${r.cid}" aria-label="Edit ${esc(c.name)}">${icon("more")}</button>`:"<span></span>"}
+      return`<div class="crow${r.v?"":" zero"}" style="--c:${PAL[c.color||0]}"${r.c?` data-cid="${r.cid}" data-kind="${kind}"`:""}><button class="cmain" data-act="mcat" data-v="${r.cid}"><span class="cdot"></span><span class="cname">${esc(c.name)}</span><b class="amt">${money(r.v,r.cur)}</b></button>${r.c?`<button class="more" data-act="mcatedit" data-v="${r.cid}" aria-label="Edit ${esc(c.name)}">${icon("more")}</button>`:"<span></span>"}
         <div class="cbar${bud&&left<0?" over":""}"><i style="width:${pct.toFixed(1)}%"></i></div><span></span>
         ${bud?`<small class="${left<0?"neg":""}">${left<0?"Over budget by "+money(-left,r.cur):money(left,r.cur)+" left of "+money(bud,r.cur)}</small>`:r.v?`<small>${share}% of ${kind==="out"?"spending":"income"}${c.note?" · "+esc(c.note):""}</small>`:c.note?`<small>${esc(c.note)}</small>`:""}</div>`}).join("")}</div>`};
-  return section("out","Spending")+section("in","Income")+(P.scope!=="month"&&cats("out").some(c=>c.budget)?`<p class="hint" style="margin:10px 4px">Budgets are monthly — switch to Month to see them.</p>`:"")+`<button class="more-btn" data-act="mcatnew">+ New category</button>`;
+  return section("out","Spending")+section("in","Income")+`<p class="hint" style="margin:10px 4px 0">Hold a category and drag it to change the order.</p>`+(P.scope!=="month"&&cats("out").some(c=>c.budget)?`<p class="hint" style="margin:10px 4px">Budgets are monthly — switch to Month to see them.</p>`:"")+`<button class="more-btn" data-act="mcatnew">+ New category</button>`;
 }
 function eventsHTML(list){
   const m={};list.forEach(t=>{if(!t.tag||t.kind==="move")return;const cur=curOf(t.wallet),k=t.tag+"|"+cur,x=m[k]=m[k]||{tag:t.tag,cur,out:0,in:0,n:0};if(t.kind==="out")x.out+=t.amt;else x.in+=t.amt;x.n++});
